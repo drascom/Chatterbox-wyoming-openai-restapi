@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   chatterbox-tts-server:
+    image: chatterbox-wyoming-openai-restapi:latest
     build:
       context: .
       dockerfile: Dockerfile
