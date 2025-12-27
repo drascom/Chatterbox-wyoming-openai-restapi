@@ -14,6 +14,7 @@ soundfile # Requires libsndfile system library (e.g., sudo apt-get install libsn
 huggingface_hub
 descript-audio-codec
 safetensors
+wyoming
 
 # Configuration & Utilities
 pydantic
@@ -29,3 +30,4 @@ pydub
 praat-parselmouth # For unvoiced segment removal
 librosa # for changes to sampling
 hf-transfer
+peft # Needed by diffusers to use PEFT backend and silence LoRACompatibleLinear deprecation

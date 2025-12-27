@@ -57,9 +57,13 @@ from config import (
     get_audio_sample_rate,
     get_full_config_for_template,
     get_audio_output_format,
+    get_wyoming_enabled,
+    get_wyoming_host,
+    get_wyoming_port,
 )
 
 import engine  # TTS Engine interface
+import wyoming_server  # Optional Wyoming protocol server
 from models import (  # Pydantic models
     CustomTTSRequest,
     ErrorResponse,
@@ -147,19 +151,25 @@ async def lifespan(app: FastAPI):
         for p in paths_to_ensure:
             p.mkdir(parents=True, exist_ok=True)
 
-        if not engine.load_model():
-            logger.critical(
-                "CRITICAL: TTS Model failed to load on startup. Server might not function correctly."
-            )
-        else:
-            logger.info("TTS Model loaded successfully via engine.")
-            host_address = get_host()
-            server_port = get_port()
-            browser_thread = threading.Thread(
-                target=lambda: _delayed_browser_open(host_address, server_port),
-                daemon=True,
-            )
-            browser_thread.start()
+        engine.start_model_load_in_background()
+        host_address = get_host()
+        server_port = get_port()
+        browser_thread = threading.Thread(
+            target=lambda: _delayed_browser_open(host_address, server_port),
+            daemon=True,
+        )
+        browser_thread.start()
+
+        if get_wyoming_enabled():
+            wyoming_thread = wyoming_server.start_wyoming_server_in_background()
+            if wyoming_thread:
+                logger.info(
+                    f"Wyoming server started on {get_wyoming_host()}:{get_wyoming_port()}."
+                )
+            else:
+                logger.warning(
+                    "Wyoming server was enabled but did not start. Check logs for details."
+                )
 
         logger.info("Application startup sequence complete.")
         startup_complete_event.set()
@@ -278,6 +288,7 @@ async def get_ui_initial_data():
             "predefined_voices": predefined_voices,
             "presets": loaded_presets,
             "initial_gen_result": initial_gen_result_placeholder,
+            "model_status": engine.get_model_status(),
         }
     except Exception as e:
         logger.error(f"Error preparing initial UI data for API: {e}", exc_info=True)
@@ -396,6 +407,12 @@ async def get_predefined_voices_api():
         raise HTTPException(
             status_code=500, detail="Failed to retrieve predefined voices list."
         )
+
+
+@app.get("/api/model-status", tags=["UI Helpers"])
+async def get_model_status_api():
+    """Returns the current TTS model load status."""
+    return engine.get_model_status()
 
 
 # --- File Upload Endpoints ---

@@ -27,6 +27,8 @@ model_device: Optional[str] = (
 )
 chatterbox_multilingual_model: Optional[ChatterboxMultilingualTTS] = None
 MULTILINGUAL_MODEL_LOADED: bool = False
+MIN_SAFE_TEMPERATURE = 0.1
+MODEL_STATUS: dict = {"state": "idle", "detail": "Model load not started."}
 
 
 def set_seed(seed_value: int):
@@ -43,6 +45,20 @@ def set_seed(seed_value: int):
     logger.info(f"Global seed set to: {seed_value}")
 
 
+def _clamp_temperature(value: Optional[float]) -> float:
+    """Clamp temperature to a safe minimum to avoid engine instability."""
+    if value is None:
+        return MIN_SAFE_TEMPERATURE
+    if value < MIN_SAFE_TEMPERATURE:
+        logger.warning(
+            "Received temperature %.4f below safe minimum %.2f; clamping to minimum.",
+            value,
+            MIN_SAFE_TEMPERATURE,
+        )
+        return MIN_SAFE_TEMPERATURE
+    return value
+
+
 def load_model() -> bool:
     """
     Loads the TTS model.
@@ -55,6 +71,7 @@ def load_model() -> bool:
     """
     global chatterbox_model, MODEL_LOADED, model_device
     global chatterbox_multilingual_model, MULTILINGUAL_MODEL_LOADED
+    MODEL_STATUS.update({"state": "loading", "detail": "Starting model load..."})
 
     enable_multilingual = config_manager.get_bool(
         "tts_engine.multilingual_model_enabled", False
@@ -64,6 +81,7 @@ def load_model() -> bool:
         logger.info("TTS model is already loaded.")
         if enable_multilingual and not MULTILINGUAL_MODEL_LOADED and model_device:
             _load_multilingual_model(model_device)
+        MODEL_STATUS.update({"state": "ready", "detail": "Model already loaded."})
         return True
 
     try:
@@ -105,6 +123,9 @@ def load_model() -> bool:
                 f"Failed to load model using from_pretrained (expected from '{model_repo_id_config}' or library default): {e_hf}",
                 exc_info=True,
             )
+            MODEL_STATUS.update(
+                {"state": "failed", "detail": f"Model load failed: {e_hf}"}
+            )
             chatterbox_model = None
             MODEL_LOADED = False
             return False
@@ -114,11 +135,23 @@ def load_model() -> bool:
             logger.info(
                 f"TTS Model loaded successfully. Engine sample rate: {chatterbox_model.sr} Hz."
             )
+            MODEL_STATUS.update(
+                {
+                    "state": "ready",
+                    "detail": f"Model loaded (sample rate {chatterbox_model.sr} Hz).",
+                }
+            )
         else:
             logger.error(
                 "Model loading sequence completed, but chatterbox_model is None. This indicates an unexpected issue."
             )
             MODEL_LOADED = False
+            MODEL_STATUS.update(
+                {
+                    "state": "failed",
+                    "detail": "Model object was None after load.",
+                }
+            )
             return False
 
         if enable_multilingual:
@@ -135,6 +168,9 @@ def load_model() -> bool:
         )
         chatterbox_model = None
         MODEL_LOADED = False
+        MODEL_STATUS.update(
+            {"state": "failed", "detail": f"Unexpected error: {e}"}
+        )
         return False
 
 
@@ -149,6 +185,12 @@ def _load_multilingual_model(device: str) -> bool:
         chatterbox_multilingual_model = ChatterboxMultilingualTTS.from_pretrained(device=device)
         MULTILINGUAL_MODEL_LOADED = True
         logger.info("Multilingual TTS model loaded successfully.")
+        MODEL_STATUS.update(
+            {
+                "state": "ready",
+                "detail": "Multilingual model loaded.",
+            }
+        )
         return True
     except Exception as e_multi:
         logger.error(
@@ -156,6 +198,12 @@ def _load_multilingual_model(device: str) -> bool:
         )
         chatterbox_multilingual_model = None
         MULTILINGUAL_MODEL_LOADED = False
+        MODEL_STATUS.update(
+            {
+                "state": "failed",
+                "detail": f"Multilingual model load failed: {e_multi}",
+            }
+        )
         return False
 
 
@@ -201,8 +249,10 @@ def synthesize(
                 "Using default (potentially random) generation behavior as seed is 0."
             )
 
+        temperature_to_use = _clamp_temperature(temperature)
+
         logger.debug(
-            f"Synthesizing with params: audio_prompt='{audio_prompt_path}', temp={temperature}, "
+            f"Synthesizing with params: audio_prompt='{audio_prompt_path}', temp={temperature_to_use}, "
             f"exag={exaggeration}, cfg_weight={cfg_weight}, seed_applied_globally_if_nonzero={seed}, language={language}"
         )
 
@@ -224,7 +274,7 @@ def synthesize(
         generate_kwargs = dict(
             text=text,
             audio_prompt_path=audio_prompt_path,
-            temperature=temperature,
+            temperature=temperature_to_use,
             exaggeration=exaggeration,
             cfg_weight=cfg_weight,
         )
@@ -240,6 +290,33 @@ def synthesize(
     except Exception as e:
         logger.error(f"Error during TTS synthesis: {e}", exc_info=True)
         return None, None
+
+
+def get_model_status() -> dict:
+    """Return current model load status."""
+    return MODEL_STATUS.copy()
+
+
+def start_model_load_in_background():
+    """Launch model loading in a background thread if not already ready or loading."""
+    import threading
+
+    if MODEL_STATUS.get("state") == "loading":
+        return
+    if MODEL_LOADED:
+        MODEL_STATUS.update({"state": "ready", "detail": "Model already loaded."})
+        return
+
+    def _loader():
+        try:
+            load_model()
+        except Exception as exc:
+            logger.error(f"Background model load failed: {exc}", exc_info=True)
+            MODEL_STATUS.update({"state": "failed", "detail": str(exc)})
+
+    MODEL_STATUS.update({"state": "loading", "detail": "Downloading/loading model..."})
+    thread = threading.Thread(target=_loader, name="model-loader", daemon=True)
+    thread.start()
 
 
 # --- End File: engine.py ---

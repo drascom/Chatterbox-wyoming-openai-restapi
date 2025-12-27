@@ -10,9 +10,9 @@ class GenerationParams(BaseModel):
 
     temperature: Optional[float] = Field(
         None,  # Defaulting to None means server will use config default if not provided
-        ge=0.0,
+        ge=0.1,  # Temperatures below 0.1 can cause engine instability
         le=1.5,  # Based on Chatterbox Gradio app for temperature
-        description="Controls randomness. Lower is more deterministic. (Range: 0.0-1.5)",
+        description="Controls randomness. Lower is more deterministic. (Safe range: 0.1-1.5)",
     )
     exaggeration: Optional[float] = Field(
         None,
@@ -78,7 +78,10 @@ class CustomTTSRequest(BaseModel):
 
     # Embed generation parameters directly
     temperature: Optional[float] = Field(
-        None, description="Overrides default temperature if provided."
+        None,
+        ge=0.1,
+        le=1.5,
+        description="Overrides default temperature if provided. Safe range: 0.1-1.5.",
     )
     exaggeration: Optional[float] = Field(
         None, description="Overrides default exaggeration if provided."

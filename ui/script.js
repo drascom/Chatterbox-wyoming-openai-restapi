@@ -14,12 +14,15 @@ document.addEventListener('DOMContentLoaded', async function () {
     let appPresets = [];
     let initialReferenceFiles = [];
     let initialPredefinedVoices = [];
+    let modelStatus = { state: 'loading', detail: 'Checking model status...' };
+    let modelStatusPollTimer = null;
 
     let hideChunkWarning = false;
     let hideGenerationWarning = false;
     let currentVoiceMode = 'predefined';
 
     const DEBOUNCE_DELAY_MS = 750;
+    const MIN_TEMPERATURE = 0.1;
 
     // --- DOM Element Selectors ---
     const appTitleLink = document.getElementById('app-title-link');
@@ -80,6 +83,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     const generationWarningModal = document.getElementById('generation-warning-modal');
     const generationWarningAcknowledgeBtn = document.getElementById('generation-warning-acknowledge');
     const hideGenerationWarningCheckbox = document.getElementById('hide-generation-warning-checkbox');
+    const modelLoadingOverlay = document.getElementById('model-loading-overlay');
+    const modelLoadingTitle = document.getElementById('model-loading-title');
+    const modelLoadingDetail = document.getElementById('model-loading-detail');
 
     // --- Utility Functions ---
     function showNotification(message, type = 'info', duration = 5000) {
@@ -109,6 +115,65 @@ document.addEventListener('DOMContentLoaded', async function () {
         notificationArea.appendChild(notificationDiv);
         if (duration > 0) setTimeout(() => closeButton.click(), duration);
         return notificationDiv;
+    }
+
+    function clampTemperature(value, fallback = 0.8) {
+        const num = parseFloat(value);
+        if (Number.isNaN(num)) return fallback;
+        return Math.max(MIN_TEMPERATURE, num);
+    }
+
+    function setFormEnabled(enabled) {
+        if (!ttsForm) return;
+        const elements = ttsForm.querySelectorAll('input, select, textarea, button');
+        elements.forEach(el => { el.disabled = !enabled; });
+        if (enabled) {
+            ttsForm.classList.remove('opacity-60', 'pointer-events-none');
+        } else {
+            ttsForm.classList.add('opacity-60', 'pointer-events-none');
+        }
+    }
+
+    function updateModelLoadingUi(status) {
+        if (!modelLoadingOverlay) return;
+        const state = status?.state || 'unknown';
+        if (state === 'ready') {
+            modelLoadingOverlay.classList.add('hidden');
+            setFormEnabled(true);
+            return;
+        }
+        setFormEnabled(false);
+        modelLoadingOverlay.classList.remove('hidden');
+        if (modelLoadingTitle) {
+            modelLoadingTitle.textContent = state === 'failed' ? 'Model load failed' : 'Loading models...';
+        }
+        if (modelLoadingDetail) {
+            const detail = status?.detail || 'Preparing the model, please wait...';
+            modelLoadingDetail.textContent = state === 'failed'
+                ? `${detail} — check container logs, then refresh after resolving.`
+                : `${detail} (first start may take a minute)`;
+        }
+    }
+
+    async function pollModelStatus() {
+        try {
+            const resp = await fetch('/api/model-status');
+            if (resp.ok) {
+                modelStatus = await resp.json();
+                updateModelLoadingUi(modelStatus);
+                if (modelStatus.state === 'ready' || modelStatus.state === 'failed') {
+                    if (modelStatusPollTimer) clearInterval(modelStatusPollTimer);
+                    modelStatusPollTimer = null;
+                    if (modelStatus.state === 'ready') {
+                        showNotification('Model loaded and ready.', 'success', 4000);
+                    } else {
+                        showNotification('Model failed to load. Check logs.', 'error', 0);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Model status poll failed', err);
+        }
     }
 
     function formatTime(seconds) {
@@ -227,6 +292,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 throw new Error(`Failed to fetch initial UI data: ${response.status} ${response.statusText}. Server response: ${errorText}`);
             }
             const data = await response.json();
+            modelStatus = data.model_status || modelStatus;
             currentConfig = data.config || {};
             currentUiState = currentConfig.ui_state || {};
             appPresets = data.presets || [];
@@ -236,6 +302,10 @@ document.addEventListener('DOMContentLoaded', async function () {
             hideGenerationWarning = currentUiState.hide_generation_warning || false;
             currentVoiceMode = currentUiState.last_voice_mode || 'predefined';
             initializeApplication();
+            updateModelLoadingUi(modelStatus);
+            if (!modelStatusPollTimer) {
+                modelStatusPollTimer = setInterval(pollModelStatus, 3000);
+            }
         } catch (error) {
             console.error("Error fetching initial data:", error);
             showNotification(`Could not load essential application data: ${error.message}. Please try refreshing.`, 'error', 0);
@@ -266,8 +336,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (chunkSizeValue) chunkSizeValue.textContent = chunkSizeSlider ? chunkSizeSlider.value : '120';
         toggleChunkControlsVisibility();
         const genDefaults = currentConfig.generation_defaults || {};
-        if (temperatureSlider) temperatureSlider.value = genDefaults.temperature !== undefined ? genDefaults.temperature : 0.8;
-        if (temperatureValueDisplay) temperatureValueDisplay.textContent = temperatureSlider.value;
+        if (temperatureSlider) temperatureSlider.value = clampTemperature(genDefaults.temperature ?? 0.8);
+        if (temperatureValueDisplay && temperatureSlider) temperatureValueDisplay.textContent = temperatureSlider.value;
         if (exaggerationSlider) exaggerationSlider.value = genDefaults.exaggeration !== undefined ? genDefaults.exaggeration : 0.5;
         if (exaggerationValueDisplay) exaggerationValueDisplay.textContent = exaggerationSlider.value;
         if (cfgWeightSlider) cfgWeightSlider.value = genDefaults.cfg_weight !== undefined ? genDefaults.cfg_weight : 0.5;
@@ -401,7 +471,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             if (charCount) charCount.textContent = textArea.value.length;
         }
         const genParams = presetData.params || presetData;
-        if (temperatureSlider && genParams.temperature !== undefined) temperatureSlider.value = genParams.temperature;
+        if (temperatureSlider && genParams.temperature !== undefined) temperatureSlider.value = clampTemperature(genParams.temperature, temperatureSlider.value);
         if (exaggerationSlider && genParams.exaggeration !== undefined) exaggerationSlider.value = genParams.exaggeration;
         if (cfgWeightSlider && genParams.cfg_weight !== undefined) cfgWeightSlider.value = genParams.cfg_weight;
         if (speedFactorSlider && genParams.speed_factor !== undefined) speedFactorSlider.value = genParams.speed_factor;
@@ -555,7 +625,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     function getTTSFormData() {
         const jsonData = {
             text: textArea.value,
-            temperature: parseFloat(temperatureSlider.value),
+            temperature: clampTemperature(temperatureSlider.value, currentConfig?.generation_defaults?.temperature ?? 0.8),
             exaggeration: parseFloat(exaggerationSlider.value),
             cfg_weight: parseFloat(cfgWeightSlider.value),
             speed_factor: parseFloat(speedFactorSlider.value),
@@ -738,7 +808,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (saveGenDefaultsBtn && genDefaultsStatus) {
         saveGenDefaultsBtn.addEventListener('click', async () => {
             const genParams = {
-                temperature: parseFloat(temperatureSlider.value), exaggeration: parseFloat(exaggerationSlider.value),
+                temperature: clampTemperature(temperatureSlider.value), exaggeration: parseFloat(exaggerationSlider.value),
                 cfg_weight: parseFloat(cfgWeightSlider.value), speed_factor: parseFloat(speedFactorSlider.value),
                 seed: parseInt(seedInput.value, 10) || 0, language: languageSelect.value
             };

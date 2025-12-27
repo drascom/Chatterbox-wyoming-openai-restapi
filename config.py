@@ -84,6 +84,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "sample_rate": 24000,  # Sample rate of the output audio in Hz.
         "max_reference_duration_sec": 30,  # Maximum duration for reference audio files.
     },
+    "wyoming": {  # Settings for the optional Wyoming protocol server.
+        "enabled": False,  # Whether to start the Wyoming server.
+        "host": "0.0.0.0",  # Host address for the Wyoming server.
+        "port": 10200,  # Port for Wyoming TCP server.
+        "advertise_name": "Chatterbox TTS (Wyoming)",  # Display name for discovery/HA.
+        "languages": ["en", "tr"],  # Languages advertised to clients.
+        "sample_rate": 24000,  # Target sample rate for streamed PCM audio.
+        "pcm_width": 2,  # Bytes per sample (2 = 16-bit PCM).
+        "channels": 1,  # Mono output for Wyoming.
+        "split_text": True,  # Use the same chunking strategy as REST by default.
+        "chunk_size": 120,  # Approximate chars per chunk when splitting text.
+    },
     "ui_state": {  # Stores user interface preferences and last-used values.
         "last_text": "",  # Last text entered by the user.
         "last_voice_mode": "predefined",  # Last selected voice mode ('predefined' or 'clone').
@@ -831,6 +843,79 @@ def get_audio_sample_rate() -> int:
     return config_manager.get_int(
         "audio_output.sample_rate",
         _get_default_from_structure("audio_output.sample_rate"),
+    )
+
+
+# Wyoming Settings Accessors
+def get_wyoming_enabled() -> bool:
+    """Returns whether the Wyoming server should start."""
+    return config_manager.get_bool(
+        "wyoming.enabled", _get_default_from_structure("wyoming.enabled")
+    )
+
+
+def get_wyoming_host() -> str:
+    """Returns the Wyoming server host."""
+    return config_manager.get_string(
+        "wyoming.host", _get_default_from_structure("wyoming.host")
+    )
+
+
+def get_wyoming_port() -> int:
+    """Returns the Wyoming server port."""
+    return config_manager.get_int(
+        "wyoming.port", _get_default_from_structure("wyoming.port")
+    )
+
+
+def get_wyoming_advertise_name() -> str:
+    """Returns the advertised name for Wyoming service discovery."""
+    return config_manager.get_string(
+        "wyoming.advertise_name",
+        _get_default_from_structure("wyoming.advertise_name"),
+    )
+
+
+def get_wyoming_languages() -> List[str]:
+    """Returns the languages advertised for Wyoming."""
+    languages = config_manager.get("wyoming.languages")
+    if isinstance(languages, list) and languages:
+        return languages
+    return _get_default_from_structure("wyoming.languages") or []
+
+
+def get_wyoming_sample_rate() -> int:
+    """Returns the target PCM sample rate for Wyoming."""
+    return config_manager.get_int(
+        "wyoming.sample_rate", _get_default_from_structure("wyoming.sample_rate")
+    )
+
+
+def get_wyoming_pcm_width() -> int:
+    """Returns bytes per sample for Wyoming PCM output."""
+    return config_manager.get_int(
+        "wyoming.pcm_width", _get_default_from_structure("wyoming.pcm_width")
+    )
+
+
+def get_wyoming_channels() -> int:
+    """Returns the number of channels for Wyoming PCM output."""
+    return config_manager.get_int(
+        "wyoming.channels", _get_default_from_structure("wyoming.channels")
+    )
+
+
+def get_wyoming_split_text() -> bool:
+    """Returns whether Wyoming synthesis should split long text."""
+    return config_manager.get_bool(
+        "wyoming.split_text", _get_default_from_structure("wyoming.split_text")
+    )
+
+
+def get_wyoming_chunk_size() -> int:
+    """Returns the target chunk size for Wyoming text splitting."""
+    return config_manager.get_int(
+        "wyoming.chunk_size", _get_default_from_structure("wyoming.chunk_size")
     )
 
 

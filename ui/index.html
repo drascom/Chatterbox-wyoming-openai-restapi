@@ -186,6 +186,19 @@
             </div>
         </nav>
 
+        <div id="model-loading-overlay" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+            <div class="bg-slate-800 text-white rounded-xl p-6 shadow-2xl max-w-md w-full space-y-3 text-center border border-slate-700">
+                <div class="flex items-center justify-center space-x-3">
+                    <svg class="animate-spin h-6 w-6 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <p id="model-loading-title" class="text-lg font-semibold">Loading models...</p>
+                </div>
+                <p id="model-loading-detail" class="text-sm text-slate-200">First start may take a minute while models download.</p>
+            </div>
+        </div>
+
         <!-- Main Content Area -->
         <main>
             <div class="mx-auto max-w-7xl px-4 py-1 sm:px-6 lg:px-8">
@@ -361,7 +374,7 @@
                                             <label for="temperature" class="label-base">Temperature (<span
                                                     id="temperature-value"
                                                     class="font-semibold tabular-nums">0.8</span>)</label>
-                                            <input type="range" id="temperature" name="temperature" min="0.0" max="1.5"
+                                            <input type="range" id="temperature" name="temperature" min="0.1" max="1.5"
                                                 step="0.01" value="0.8" class="slider-base">
                                         </div>
                                         <div>
