@@ -15,12 +15,30 @@ python server.py
 Adjust `config.yaml` for paths, defaults, and audio settings; it auto-creates on first run.
 
 ## Docker
+Use the published image for day-to-day usage:
 ```
-docker build -t chatterbox-tr-api .
-docker run --gpus all -p 8004:8004 -p 10200:10200 -v $PWD/outputs:/app/outputs -v $PWD/voices:/app/voices -v $PWD/reference_audio:/app/reference_audio chatterbox-tr-api
+docker run --rm --gpus all -p 8004:8004 -p 10200:10200 \
+  -v $PWD/outputs:/app/outputs \
+  -v $PWD/voices:/app/voices \
+  -v $PWD/reference_audio:/app/reference_audio \
+  drascom07/chatterbox-wyoming-openai-restapi:latest
 ```
-Or use `docker compose up -d  --build` with the included files. Expose `10200` only if you enable Wyoming.
-If you need a full clean before rebuilding (removes images/volumes/orphans):
+Alternatively the bundled `docker-compose.yml` is tuned for the published image: run `docker compose pull` followed by `docker compose up -d`, and only publish `10200` when Wyoming is enabled. (The compose file embeds `PORT`/volume mounts and GPU hints.)
+
+When developing inside this repo, rebuild the image locally so you can test your changes:
+```
+docker build -t chatterbox-wyoming-openai-restapi .
+docker run --rm --gpus all -p 8004:8004 -p 10200:10200 \
+  -v $PWD/outputs:/app/outputs \
+  -v $PWD/voices:/app/voices \
+  -v $PWD/reference_audio:/app/reference_audio \
+  chatterbox-wyoming-openai-restapi
+```
+You can also run the compose file with a rebuild instead of `pull`:
+```
+docker compose up -d --build
+```
+For a clean rebuild (removes images/volumes/orphans):
 ```
 docker compose down --rmi all --volumes --remove-orphans
 docker system prune -a --volumes -f
