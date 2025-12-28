@@ -15,22 +15,27 @@ python server.py
 ```
 Adjust `config.yaml` for paths, defaults, and audio settings; it auto-creates on first run.
 
-## Docker
+## FastAPI / General Use
+### Daily Use
 Use the published image for day-to-day usage:
 ```
-docker run --rm --gpus all -p 8004:8004 -p 10200:10200 \
+docker run --rm --gpus all \
+  -p 8004:8004 \
+  -p 10200:10200 \
+  -p 10300:10300 \
   -v $PWD/outputs:/app/outputs \
   -v $PWD/voices:/app/voices \
   -v $PWD/reference_audio:/app/reference_audio \
   drascom07/chatterbox-wyoming-openai-restapi:latest
 ```
 When running via `docker run`, include `--gpus all` (and the same volumes/ports) so the container can see your NVIDIA driver; `docker compose up -d` already works because it defaults to the configured NVIDIA runtime even without that flag.
-Alternatively the bundled `docker-compose.yml` is tuned for the published image: run `docker compose pull` followed by `docker compose up -d`. The compose file now maps both the API port and, by default, `10200` for Wyoming (`WYOMING_PORT` lets you override the host side); only start listening on that port if `wyoming.enabled: true` in the config.
+Alternatively the bundled `docker-compose.yml` is tuned for the published image: run `docker compose pull` followed by `docker compose up -d`. The compose file maps the API port by default and you can override host-side ports with `PORT`, `WYOMING_PORT`, and `WHISPER_PORT`.
 
+### Development
 When developing inside this repo, rebuild the image locally so you can test your changes:
 ```
 docker build -t chatterbox-wyoming-openai-restapi .
-docker run --rm --gpus all -p 8004:8004 -p 10200:10200 \
+docker run --rm --gpus all -p 8004:8004 \
   -v $PWD/outputs:/app/outputs \
   -v $PWD/voices:/app/voices \
   -v $PWD/reference_audio:/app/reference_audio \
@@ -47,17 +52,20 @@ docker system prune -a --volumes -f
 ```
 
 ## Home Assistant (Wyoming)
-- In `config.yaml`, set `wyoming.enabled: true`; adjust `wyoming.host/port/sample_rate` if needed (defaults: `0.0.0.0:10200`, 24 kHz PCM16 mono).
-- Install dependencies and start the server (`python server.py`) or run the container with port `10200` published.
-- In Home Assistant, add the “Wyoming Protocol” integration pointing to that host/port, then pick the “Chatterbox TTS (Wyoming)” provider in your voice pipeline. Voices are exposed by filename from `voices/` and `reference_audio/`.
+- Enable Wyoming in `config.yaml` (`wyoming.enabled: true`). This turns on both services below.
+- Publish ports when running in Docker (default host ports): TTS `10200`, STT `10300`.
+- In Home Assistant, add the “Wyoming Protocol” integration pointing to the host/port for each service.
+
+Wyoming TTS (Chatterbox):
+- Default port: `10200` (`WYOMING_PORT` overrides host side).
+- Provider name in HA: “Chatterbox TTS (Wyoming)”.
+- Voices are exposed by filename from `voices/` and `reference_audio/`.
 - Optional: add `tts_engine.voice_language_map` entries (e.g., `"Abigail.wav": "en"`) so HA can display voices like `Abigail (EN)` and the server can infer language when HA omits it.
 
-## Standalone Wyoming test
-If you only need to test the Wyoming protocol from Home Assistant without bringing up the FastAPI UI, run the new `wyoming_standalone.py` script:
-```
-python wyoming_standalone.py
-```
-The script reads the same `config.yaml`, starts the Wyoming `AsyncServer`, and logs readiness; you can override the bind address/port with `--host`/`--port` or force it even when `wyoming.enabled` is false using `--force`. Point HA at the advertised host/port (e.g., `localhost:10200`), exercise `/status` or `/speak`, and stop the script when done with Ctrl+C.
+Wyoming STT (Whisper):
+- Default port: `10300` (`WHISPER_PORT` overrides host side).
+- Whisper model is loaded in `wyoming_stt_server.py` and currently set to Turkish (`LANGUAGE="tr"`). Adjust there if you need a different language.
+
 
 ## Notes vs upstream
 - Upstream: https://github.com/devnen/Chatterbox-TTS-Server
