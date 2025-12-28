@@ -10,6 +10,7 @@ services:
     ports:
       - "${PORT:-8004}:8004"
       - "${WYOMING_PORT:-10200}:10200"
+      - "${WHISPER_PORT:-10300}:10300"
     volumes:
       # Mount local config file for persistence
       - ./config.yaml:/app/config.yaml
