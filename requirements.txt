@@ -15,6 +15,7 @@ soundfile # Requires libsndfile system library (e.g., sudo apt-get install libsn
 huggingface_hub
 safetensors
 wyoming
+openai-whisper
 onnx==1.15.0  # matches protobuf>=3.20.3,<4 and has wheels for py3.11
 protobuf>=3.20.3,<4.0.0  # aligns onnx with the rest of the stack
 resemble-perth==1.0.1  # required by chatterbox-tts watermarker

@@ -8,10 +8,10 @@ FastAPI server for the Chatterbox TTS model. This fork keeps the upstream UX/fea
 
 ## Install (bare metal)
 ```
-python3 -m venv venv
+uv venv
 source venv/bin/activate
-pip install -r requirements.txt
-python server.py
+uv pip install -r requirements.txt
+uv run python server.py
 ```
 Adjust `config.yaml` for paths, defaults, and audio settings; it auto-creates on first run.
 
