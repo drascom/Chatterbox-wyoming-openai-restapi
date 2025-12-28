@@ -23,6 +23,7 @@ docker run --rm --gpus all -p 8004:8004 -p 10200:10200 \
   -v $PWD/reference_audio:/app/reference_audio \
   drascom07/chatterbox-wyoming-openai-restapi:latest
 ```
+When running via `docker run`, include `--gpus all` (and the same volumes/ports) so the container can see your NVIDIA driver; `docker compose up -d` already works because it defaults to the configured NVIDIA runtime even without that flag.
 Alternatively the bundled `docker-compose.yml` is tuned for the published image: run `docker compose pull` followed by `docker compose up -d`, and only publish `10200` when Wyoming is enabled. (The compose file embeds `PORT`/volume mounts and GPU hints.)
 
 When developing inside this repo, rebuild the image locally so you can test your changes:
