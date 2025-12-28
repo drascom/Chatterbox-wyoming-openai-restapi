@@ -62,6 +62,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         ),  # Directory for reference audio files for cloning.
         "default_voice_id": "default_sample.wav",  # Default voice file to use if none is specified.
         "multilingual_model_enabled": False,  # Enable loading ChatterboxMultilingualTTS (supports multiple languages).
+        "voice_language_map": {},  # Map of voice filename to language code (e.g., "Abigail.wav": "en").
     },
     "paths": {  # General configurable paths for the application.
         "model_cache": str(
@@ -762,6 +763,22 @@ def get_default_voice_id() -> str:
         "tts_engine.default_voice_id",
         _get_default_from_structure("tts_engine.default_voice_id"),
     )
+
+
+def get_voice_language_map() -> Dict[str, str]:
+    """Returns the voice-to-language map (filename -> language code)."""
+    raw_map = config_manager.get(
+        "tts_engine.voice_language_map",
+        _get_default_from_structure("tts_engine.voice_language_map"),
+    )
+    if not isinstance(raw_map, dict):
+        return {}
+    cleaned_map: Dict[str, str] = {}
+    for key, value in raw_map.items():
+        if key is None or value is None:
+            continue
+        cleaned_map[str(key)] = str(value).strip()
+    return cleaned_map
 
 
 # General Path Settings Accessors

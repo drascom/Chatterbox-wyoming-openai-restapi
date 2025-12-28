@@ -1,4 +1,5 @@
 # requirements.txt
+# Tested with Python 3.11; other versions may hit protobuf pinning issues with some deps.
 
 chatterbox-tts
 
@@ -12,9 +13,12 @@ torchaudio
 numpy
 soundfile # Requires libsndfile system library (e.g., sudo apt-get install libsndfile1 on Debian/Ubuntu)
 huggingface_hub
-descript-audio-codec
 safetensors
 wyoming
+onnx==1.15.0  # matches protobuf>=3.20.3,<4 and has wheels for py3.11
+protobuf>=3.20.3,<4.0.0  # aligns onnx with the rest of the stack
+resemble-perth==1.0.1  # required by chatterbox-tts watermarker
+setuptools  # needed for pkg_resources used by resemble-perth
 
 # Configuration & Utilities
 pydantic

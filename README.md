@@ -4,6 +4,7 @@ FastAPI server for the Chatterbox TTS model. This fork keeps the upstream UX/fea
 - Default config tuned for Turkish as well as English (language selector is for model input; the UI itself remains English).
 - OpenAI-compatible `/v1/audio/speech` endpoint.
 - Optional Wyoming protocol server for Home Assistant voice pipelines.
+- Tested with Python 3.11 (recommended to avoid dependency pinning issues, e.g., protobuf).
 
 ## Install (bare metal)
 ```
@@ -49,6 +50,14 @@ docker system prune -a --volumes -f
 - In `config.yaml`, set `wyoming.enabled: true`; adjust `wyoming.host/port/sample_rate` if needed (defaults: `0.0.0.0:10200`, 24 kHz PCM16 mono).
 - Install dependencies and start the server (`python server.py`) or run the container with port `10200` published.
 - In Home Assistant, add the “Wyoming Protocol” integration pointing to that host/port, then pick the “Chatterbox TTS (Wyoming)” provider in your voice pipeline. Voices are exposed by filename from `voices/` and `reference_audio/`.
+- Optional: add `tts_engine.voice_language_map` entries (e.g., `"Abigail.wav": "en"`) so HA can display voices like `Abigail (EN)` and the server can infer language when HA omits it.
+
+## Standalone Wyoming test
+If you only need to test the Wyoming protocol from Home Assistant without bringing up the FastAPI UI, run the new `wyoming_standalone.py` script:
+```
+python wyoming_standalone.py
+```
+The script reads the same `config.yaml`, starts the Wyoming `AsyncServer`, and logs readiness; you can override the bind address/port with `--host`/`--port` or force it even when `wyoming.enabled` is false using `--force`. Point HA at the advertised host/port (e.g., `localhost:10200`), exercise `/status` or `/speak`, and stop the script when done with Ctrl+C.
 
 ## Notes vs upstream
 - Upstream: https://github.com/devnen/Chatterbox-TTS-Server

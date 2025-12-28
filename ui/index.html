@@ -308,6 +308,40 @@
                                 </div>
                             </div>
 
+                            <div class="mb-6">
+                                <details class="group">
+                                    <summary class="list-none flex cursor-pointer items-center group">
+                                        <span
+                                            class="text-sm font-medium label-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Voice
+                                            Management</span>
+                                        <span
+                                            class="ml-1.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
+                                            <svg class="group-open:rotate-180 h-5 w-5 transition-transform duration-200 ease-in-out"
+                                                viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd"
+                                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                    clip-rule="evenodd" />
+                                            </svg>
+                                        </span>
+                                    </summary>
+                                    <div id="voice-management" class="mt-4">
+                                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                                            Assign a language label for each voice so Home Assistant can display it and
+                                            the server can infer language when HA omits it.
+                                        </p>
+                                        <div class="rounded-lg border border-slate-200 dark:border-slate-700">
+                                            <div
+                                                class="grid grid-cols-2 gap-2 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900">
+                                                <span>Voice</span>
+                                                <span>Language</span>
+                                            </div>
+                                            <div id="voice-language-list"
+                                                class="divide-y divide-slate-200 dark:divide-slate-700"></div>
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
+
                             <div id="clone-options" class="mb-6 hidden">
                                 <label for="clone-reference-select" class="label-base">Reference Audio File</label>
                                 <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -342,14 +376,6 @@
                                                 clip-rule="evenodd" />
                                         </svg>
                                     </button>
-                                </div>
-                            </div>
-
-                            <div class="mb-6">
-                                <label class="label-base mb-2">Load Example Preset:</label>
-                                <div id="presets-container" class="flex flex-wrap gap-2">
-                                    <p id="presets-placeholder" class="text-sm text-slate-500 dark:text-slate-400">
-                                        Loading presets...</p>
                                 </div>
                             </div>
 
@@ -512,6 +538,14 @@
                                     </div>
                                 </details>
                             </div>
+
+                            <div class="mb-6">
+                                <label class="label-base mb-2">Load Example Preset:</label>
+                                <div id="presets-container" class="flex flex-wrap gap-2">
+                                    <p id="presets-placeholder" class="text-sm text-slate-500 dark:text-slate-400">
+                                        Loading presets...</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="card-footer">
@@ -631,6 +665,23 @@
             <div class="modal-actions">
                 <button id="generation-warning-acknowledge" type="button" class="btn-primary">Acknowledge &
                     Generate</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="predefined-voice-upload-modal" class="modal-overlay hidden opacity-0" data-state="closed">
+        <div class="modal-box">
+            <h3 class="modal-title">Import Predefined Voice</h3>
+            <div class="modal-content">
+                <p class="mb-3">Choose a language label for the voice files you are about to upload.</p>
+                <label for="predefined-voice-upload-language" class="label-base">Language</label>
+                <select id="predefined-voice-upload-language" class="select-base w-40">
+                    <option value="">Auto</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button id="predefined-voice-upload-cancel" type="button" class="btn-secondary">Cancel</button>
+                <button id="predefined-voice-upload-confirm" type="button" class="btn-primary">Choose Files</button>
             </div>
         </div>
     </div>

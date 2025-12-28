@@ -14,12 +14,14 @@ document.addEventListener('DOMContentLoaded', async function () {
     let appPresets = [];
     let initialReferenceFiles = [];
     let initialPredefinedVoices = [];
+    let voiceLanguageMap = {};
     let modelStatus = { state: 'loading', detail: 'Checking model status...' };
     let modelStatusPollTimer = null;
 
     let hideChunkWarning = false;
     let hideGenerationWarning = false;
     let currentVoiceMode = 'predefined';
+    let pendingUploadLanguage = '';
 
     const DEBOUNCE_DELAY_MS = 750;
     const MIN_TEMPERATURE = 0.1;
@@ -42,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const voiceModeRadios = document.querySelectorAll('input[name="voice_mode"]');
     const predefinedVoiceOptionsDiv = document.getElementById('predefined-voice-options');
     const predefinedVoiceSelect = document.getElementById('predefined-voice-select');
+    const predefinedVoiceUploadLanguage = document.getElementById('predefined-voice-upload-language');
     const predefinedVoiceImportButton = document.getElementById('predefined-voice-import-button');
     const predefinedVoiceRefreshButton = document.getElementById('predefined-voice-refresh-button');
     const predefinedVoiceFileInput = document.getElementById('predefined-voice-file-input');
@@ -64,6 +67,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const seedInput = document.getElementById('seed');
     const languageSelectContainer = document.getElementById('language-select-container');
     const languageSelect = document.getElementById('language');
+    const voiceLanguageList = document.getElementById('voice-language-list');
     const saveGenDefaultsBtn = document.getElementById('save-gen-defaults-btn');
     const genDefaultsStatus = document.getElementById('gen-defaults-status');
     const serverConfigForm = document.getElementById('server-config-form');
@@ -86,6 +90,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     const modelLoadingOverlay = document.getElementById('model-loading-overlay');
     const modelLoadingTitle = document.getElementById('model-loading-title');
     const modelLoadingDetail = document.getElementById('model-loading-detail');
+    const predefinedVoiceUploadModal = document.getElementById('predefined-voice-upload-modal');
+    const predefinedVoiceUploadCancel = document.getElementById('predefined-voice-upload-cancel');
+    const predefinedVoiceUploadConfirm = document.getElementById('predefined-voice-upload-confirm');
 
     // --- Utility Functions ---
     function showNotification(message, type = 'info', duration = 5000) {
@@ -268,9 +275,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (appTitleLink) appTitleLink.textContent = pageTitle;
         if (ttsFormHeader) ttsFormHeader.textContent = `Generate Speech`;
         populateLanguageOptions();
+        populateVoiceLanguageOptions();
         loadInitialUiState();
         populatePredefinedVoices();
         populateReferenceFiles();
+        renderVoiceLanguageManagement();
         populatePresets();
         displayServerConfiguration();
         if (languageSelectContainer && currentConfig?.ui?.show_language_select === false) {
@@ -298,6 +307,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             appPresets = data.presets || [];
             initialReferenceFiles = data.reference_files || [];
             initialPredefinedVoices = data.predefined_voices || [];
+            voiceLanguageMap = data.voice_language_map || {};
             hideChunkWarning = currentUiState.hide_chunk_warning || false;
             hideGenerationWarning = currentUiState.hide_generation_warning || false;
             currentVoiceMode = currentUiState.last_voice_mode || 'predefined';
@@ -382,7 +392,25 @@ document.addEventListener('DOMContentLoaded', async function () {
                 slider.addEventListener('change', debouncedSaveState);
             }
         });
-        if (languageSelect) languageSelect.addEventListener('change', debouncedSaveState);
+    if (languageSelect) {
+        languageSelect.addEventListener('change', () => {
+            if (predefinedVoiceUploadLanguage) {
+                predefinedVoiceUploadLanguage.value = languageSelect.value || '';
+            }
+            debouncedSaveState();
+        });
+    }
+
+    if (predefinedVoiceUploadCancel) {
+        predefinedVoiceUploadCancel.addEventListener('click', hidePredefinedVoiceUploadModal);
+    }
+    if (predefinedVoiceUploadConfirm) {
+        predefinedVoiceUploadConfirm.addEventListener('click', () => {
+            pendingUploadLanguage = predefinedVoiceUploadLanguage ? predefinedVoiceUploadLanguage.value : '';
+            hidePredefinedVoiceUploadModal();
+            if (predefinedVoiceFileInput) predefinedVoiceFileInput.click();
+        });
+    }
     }
 
     // --- Dynamic UI Population ---
@@ -442,6 +470,96 @@ document.addEventListener('DOMContentLoaded', async function () {
             option.textContent = lang.label || lang.name || option.value;
             languageSelect.appendChild(option);
         });
+    }
+
+    function populateVoiceLanguageOptions() {
+        if (!predefinedVoiceUploadLanguage) return;
+        const configuredLanguages = Array.isArray(currentConfig?.ui?.languages)
+            ? currentConfig.ui.languages
+            : [];
+        predefinedVoiceUploadLanguage.innerHTML = '<option value="">Lang</option>';
+        const optionsSource = configuredLanguages.length > 0 ? configuredLanguages : [{ code: 'en', label: 'English' }];
+        optionsSource.forEach(lang => {
+            const option = document.createElement('option');
+            option.value = lang.code || lang.value || 'en';
+            option.textContent = lang.label || lang.name || option.value;
+            predefinedVoiceUploadLanguage.appendChild(option);
+        });
+        if (languageSelect && languageSelect.value) {
+            predefinedVoiceUploadLanguage.value = languageSelect.value;
+        }
+    }
+
+    function renderVoiceLanguageManagement() {
+        if (!voiceLanguageList) return;
+        const configuredLanguages = Array.isArray(currentConfig?.ui?.languages)
+            ? currentConfig.ui.languages
+            : [];
+        const optionsSource = configuredLanguages.length > 0 ? configuredLanguages : [{ code: 'en', label: 'English' }];
+        const voices = [];
+        (initialPredefinedVoices || []).forEach(voice => voices.push(voice.filename));
+        (initialReferenceFiles || []).forEach(file => voices.push(file));
+        voiceLanguageList.innerHTML = '';
+        voices.forEach(filename => {
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-2 gap-2 items-center px-3 py-2';
+            const label = document.createElement('span');
+            label.className = 'text-sm text-slate-700 dark:text-slate-200 truncate';
+            label.textContent = filename;
+            const select = document.createElement('select');
+            select.className = 'select-base';
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = 'Auto';
+            select.appendChild(emptyOpt);
+            optionsSource.forEach(lang => {
+                const option = document.createElement('option');
+                option.value = lang.code || lang.value || 'en';
+                option.textContent = lang.label || lang.name || option.value;
+                select.appendChild(option);
+            });
+            select.value = voiceLanguageMap[filename] || '';
+            select.addEventListener('change', async () => {
+                try {
+                    const response = await fetch('/api/voice-language-map', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename, language: select.value || null })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.detail || 'Failed to update voice language.');
+                    voiceLanguageMap = result.voice_language_map || {};
+                    showNotification(`Voice language updated for ${filename}.`, 'success', 2000);
+                } catch (error) {
+                    console.error('Error updating voice language:', error);
+                    showNotification(`Voice language update failed: ${error.message}`, 'error', 4000);
+                }
+            });
+            row.appendChild(label);
+            row.appendChild(select);
+            voiceLanguageList.appendChild(row);
+        });
+    }
+
+    function showPredefinedVoiceUploadModal() {
+        if (!predefinedVoiceUploadModal) return;
+        if (predefinedVoiceUploadLanguage && languageSelect) {
+            predefinedVoiceUploadLanguage.value = languageSelect.value || '';
+        }
+        predefinedVoiceUploadModal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            predefinedVoiceUploadModal.classList.remove('opacity-0');
+            predefinedVoiceUploadModal.dataset.state = 'open';
+        });
+    }
+
+    function hidePredefinedVoiceUploadModal() {
+        if (!predefinedVoiceUploadModal) return;
+        predefinedVoiceUploadModal.classList.add('opacity-0');
+        setTimeout(() => {
+            predefinedVoiceUploadModal.classList.add('hidden');
+            predefinedVoiceUploadModal.dataset.state = 'closed';
+        }, 300);
     }
 
     function populatePresets() {
@@ -864,9 +982,10 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
 
     // --- File Upload & Refresh ---
-    async function handleFileUpload(fileInput, endpoint, successCallback, buttonToAnimate) {
+    async function handleFileUpload(fileInput, endpoint, successCallback, buttonToAnimate, extraFormFields = null) {
         const files = fileInput.files;
         if (!files || files.length === 0) return;
+        pendingUploadLanguage = '';
         const originalButtonHTML = buttonToAnimate ? buttonToAnimate.innerHTML : '';
         if (buttonToAnimate) {
             buttonToAnimate.innerHTML = `<svg class="animate-spin h-5 w-5 mr-1.5 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Uploading...`;
@@ -875,6 +994,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         const uploadNotification = showNotification(`Uploading ${files.length} file(s)...`, 'info', 0);
         const formData = new FormData();
         for (const file of files) formData.append('files', file);
+        if (extraFormFields) {
+            Object.entries(extraFormFields).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') {
+                    formData.append(key, value);
+                }
+            });
+        }
         try {
             const response = await fetch(endpoint, { method: 'POST', body: formData });
             const result = await response.json();
@@ -917,15 +1043,25 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
 
     if (predefinedVoiceImportButton && predefinedVoiceFileInput) {
-        predefinedVoiceImportButton.addEventListener('click', () => predefinedVoiceFileInput.click());
-        predefinedVoiceFileInput.addEventListener('change', () => handleFileUpload(predefinedVoiceFileInput, '/upload_predefined_voice', (result) => {
+        predefinedVoiceImportButton.addEventListener('click', showPredefinedVoiceUploadModal);
+        predefinedVoiceFileInput.addEventListener('change', () => handleFileUpload(
+            predefinedVoiceFileInput,
+            '/upload_predefined_voice',
+            (result) => {
             initialPredefinedVoices = result.all_predefined_voices || [];
             populatePredefinedVoices();
+            if (result.voice_language_map) {
+                voiceLanguageMap = result.voice_language_map;
+            }
+            renderVoiceLanguageManagement();
             const firstUploadedFilename = result.uploaded_files?.[0];
             if (firstUploadedFilename && predefinedVoiceSelect && initialPredefinedVoices.some(v => v.filename === firstUploadedFilename)) {
                 predefinedVoiceSelect.value = firstUploadedFilename;
             }
-        }, predefinedVoiceImportButton));
+        },
+            predefinedVoiceImportButton,
+            { language: pendingUploadLanguage }
+        ));
     }
 
     if (cloneRefreshButton && cloneReferenceSelect) {
@@ -939,6 +1075,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const files = await response.json();
                 initialReferenceFiles = files;
                 populateReferenceFiles();
+                renderVoiceLanguageManagement();
                 showNotification("Reference file list refreshed.", 'info', 2000);
                 debouncedSaveState();
             } catch (error) {
@@ -962,6 +1099,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const voices = await response.json();
                 initialPredefinedVoices = voices;
                 populatePredefinedVoices();
+                renderVoiceLanguageManagement();
                 showNotification("Predefined voices list refreshed.", 'info', 2000);
                 debouncedSaveState();
             } catch (error) {

@@ -16,6 +16,23 @@ tts_engine:
   reference_audio_path: reference_audio
   default_voice_id: Emily.wav
   multilingual_model_enabled: true
+  voice_language_map:
+    ayhan.mp3: tr-TR
+    Abigail.wav: tr-TR
+    Adrian.wav: en-US
+    Alexander.wav: tr-TR
+    Alice.wav: en-US
+    Austin.wav: tr-TR
+    Axel.wav: en-US
+    Connor.wav: en-US
+    Cora.wav: en-US
+    Elena.wav: en-US
+    Eli.wav: en-US
+    Emily.wav: en-US
+    Everett.wav: en-US
+    Gabriel.wav: en-US
+    Gianna.wav: en-US
+    serdar.mp3: tr-TR
 paths:
   model_cache: model_cache
   output: outputs
@@ -23,9 +40,9 @@ generation_defaults:
   temperature: 0.6
   exaggeration: 0.4
   cfg_weight: 1
-  seed: 1775
+  seed: 42
   speed_factor: 1
-  language: tr
+  language: tr-TR
 audio_output:
   format: wav
   sample_rate: 24000
@@ -36,8 +53,8 @@ wyoming:
   port: 10200
   advertise_name: Chatterbox TTS (Wyoming)
   languages:
-  - en
-  - tr
+  - tr-TR
+  - en-US
   sample_rate: 24000
   pcm_width: 2
   channels: 1
@@ -53,8 +70,8 @@ ui_state:
     polar ice caps of Earth.
 
     '
-  last_voice_mode: clone
-  last_predefined_voice: none
+  last_voice_mode: predefined
+  last_predefined_voice: Jade.wav
   last_reference_file: none
   last_seed: 42
   last_chunk_size: 240
@@ -62,15 +79,15 @@ ui_state:
   hide_chunk_warning: false
   hide_generation_warning: true
   theme: dark
-  last_language: en
+  last_language: tr-TR
 ui:
   title: Chatterbox TTS Server
   show_language_select: true
   max_predefined_voices_in_dropdown: 50
   languages:
-  - code: en
+  - code: en-US
     label: English
-  - code: tr
+  - code: tr-TR
     label: "T\xFCrk\xE7e"
 debug:
   save_intermediate_audio: false
