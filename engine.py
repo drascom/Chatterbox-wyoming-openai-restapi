@@ -2,6 +2,7 @@
 # Core TTS model loading and speech generation logic.
 
 import logging
+import warnings
 import random
 import numpy as np
 import torch
@@ -18,6 +19,12 @@ from chatterbox.models.s3gen.const import (
 from config import config_manager
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
+warnings.filterwarnings(
+    "ignore",
+    message=".*pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+)
 
 # --- Global Module Variables ---
 chatterbox_model: Optional[ChatterboxTTS] = None

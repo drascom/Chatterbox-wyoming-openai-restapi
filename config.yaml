@@ -15,7 +15,7 @@ tts_engine:
   predefined_voices_path: voices
   reference_audio_path: reference_audio
   default_voice_id: default_sample.wav
-  multilingual_model_enabled: false
+  multilingual_model_enabled: true
   voice_language_map: {}
 paths:
   model_cache: model_cache
@@ -48,15 +48,7 @@ wyoming_stt:
   host: 0.0.0.0
   port: 10300
 ui_state:
-  last_text: 'The solar system consists of the Sun and the astronomical objects gravitationally
-    bound in orbit around it.
-
-    Mars, often called the Red Planet, is the fourth planet from the Sun. It is a
-    terrestrial planet with a thin atmosphere, having surface features reminiscent
-    both of the impact craters of the Moon and the volcanoes, valleys, deserts, and
-    polar ice caps of Earth.
-
-    '
+  last_text: "selam birader naber \n"
   last_voice_mode: predefined
   last_predefined_voice: Adrian.wav
   last_reference_file: none
@@ -66,7 +58,7 @@ ui_state:
   hide_chunk_warning: false
   hide_generation_warning: true
   theme: dark
-  last_language: en
+  last_language: tr
 ui:
   title: Chatterbox TTS Server
   show_language_select: true

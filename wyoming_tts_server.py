@@ -11,6 +11,7 @@ import numpy as np
 
 import engine
 import utils
+import wyoming_stt_server
 from config import (
     config_manager,
     get_audio_sample_rate,
@@ -40,6 +41,7 @@ from wyoming.server import AsyncEventHandler, AsyncServer
 from wyoming.tts import Synthesize
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class WyomingTTSService(AsyncEventHandler):
@@ -162,8 +164,10 @@ class WyomingTTSService(AsyncEventHandler):
         """Dispatch Describe and Synthesize events."""
         try:
             if Describe.is_type(event.type):
+                logger.info("Wyoming TTS request: %s", self._event_summary(event))
                 await self._handle_describe()
             elif Synthesize.is_type(event.type):
+                logger.info("Wyoming TTS request: %s", self._event_summary(event))
                 await self._handle_synthesize(event)
             else:
                 logger.warning(f"Unsupported Wyoming event received: {event.type}")
@@ -174,6 +178,14 @@ class WyomingTTSService(AsyncEventHandler):
             except Exception:
                 logger.debug("Failed to emit AudioStop after error.", exc_info=True)
         return True
+
+    @staticmethod
+    def _event_summary(event) -> str:
+        """Best-effort summary of a Wyoming event for logging."""
+        event_data = getattr(event, "data", None)
+        if event_data is None:
+            return f"type={getattr(event, 'type', 'unknown')}"
+        return f"type={getattr(event, 'type', 'unknown')}, data={event_data}"
 
     async def _handle_describe(self) -> None:
         """Respond to Describe with available voices and capabilities."""
@@ -252,16 +264,21 @@ class WyomingTTSService(AsyncEventHandler):
         voice_name = payload.voice.name if payload.voice else None
         voice_filename = self._resolve_voice_filename(voice_name)
         requested_language = payload.voice.language if payload.voice and hasattr(payload.voice, "language") else None
-        # Prefer requested voice language if provided; otherwise fall back to the first advertised language.
-        language = get_gen_default_language()
+        # Prefer requested voice language if provided; otherwise fall back to the last STT language.
+        language = "tr-TR"
         if requested_language:
             language = requested_language
-        elif voice_filename:
-            mapped_language = self.voice_language_map.get(voice_filename)
-            if mapped_language:
-                language = mapped_language
-        elif self.languages:
-            language = self.languages[0]
+        else:
+            client_key = self._client_key()
+            last_stt_language = wyoming_stt_server.get_last_requested_language_for_client(client_key)
+            if last_stt_language:
+                language = last_stt_language
+            elif voice_filename:
+                mapped_language = self.voice_language_map.get(voice_filename)
+                if mapped_language:
+                    language = mapped_language
+            elif self.languages:
+                language = self.languages[0]
 
         # If no language requested, try to infer from voice filename suffix `_tr` or `_en`.
         if not requested_language and voice_filename:
@@ -382,6 +399,13 @@ class WyomingTTSService(AsyncEventHandler):
                 np.int16
             )
         return pcm_int16.tobytes(), engine_sr
+
+    def _client_key(self) -> str:
+        """Build a stable client key from the connection."""
+        peername = self.writer.get_extra_info("peername")
+        if isinstance(peername, tuple) and len(peername) >= 2:
+            return f"{peername[0]}"
+        return str(peername or "unknown")
 
     def _resolve_voice_path(self, voice_name: Optional[str]) -> Optional[Path]:
         """Return a path for the requested voice (predefined or reference)."""

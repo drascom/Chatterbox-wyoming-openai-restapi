@@ -109,6 +109,7 @@ logging.basicConfig(
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("watchfiles").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
 warnings.filterwarnings(
     "ignore",
     message=".*pkg_resources is deprecated as an API.*",

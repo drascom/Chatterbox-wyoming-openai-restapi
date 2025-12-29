@@ -1,14 +1,17 @@
 import asyncio
 import io
 import logging
+import json
+import os
 import threading
+import time
 import warnings
 
 import numpy as np
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
-from config import get_wyoming_stt_host, get_wyoming_stt_port
+from config import get_log_file_path, get_wyoming_stt_host, get_wyoming_stt_port
 from wyoming.info import Describe, Info, AsrProgram, AsrModel, Attribution
 from wyoming.server import AsyncEventHandler, AsyncServer
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
@@ -33,6 +36,7 @@ warnings.filterwarnings(
 # Global model/processor
 asr_model = None
 asr_processor = None
+_LANGUAGE_TTL_SEC = 300
 
 
 def load_model():
@@ -71,12 +75,33 @@ class WyomingSTTHandler(AsyncEventHandler):
             await self._transcribe()
 
         elif Transcribe.is_type(event.type):
-            pass
+            _LOGGER.info("Wyoming STT request: %s", self._event_summary(event))
+            language = None
+            event_data = getattr(event, "data", None)
+            if isinstance(event_data, dict):
+                language = event_data.get("language")
+            if language:
+                set_last_requested_language(self._client_key(), str(language))
 
         elif Describe.is_type(event.type):
             await self._handle_describe()
 
         return True
+
+    @staticmethod
+    def _event_summary(event) -> str:
+        """Best-effort summary of a Wyoming event for logging."""
+        event_data = getattr(event, "data", None)
+        if event_data is None:
+            return f"type={getattr(event, 'type', 'unknown')}"
+        return f"type={getattr(event, 'type', 'unknown')}, data={event_data}"
+
+    def _client_key(self) -> str:
+        """Build a stable client key from the connection."""
+        peername = self.writer.get_extra_info("peername")
+        if isinstance(peername, tuple) and len(peername) >= 2:
+            return f"{peername[0]}"
+        return str(peername or "unknown")
 
     async def _handle_describe(self):
         """Tell Home Assistant we are a Turkish STT service."""
@@ -147,6 +172,88 @@ class WyomingSTTHandler(AsyncEventHandler):
 
         except Exception as e:
             _LOGGER.error("Transcription failed: %s", e, exc_info=True)
+
+
+def set_last_requested_language(client_key: str, language: str) -> None:
+    """Store the most recent language requested by an STT client."""
+    store_dir = _get_language_store_dir()
+    os.makedirs(store_dir, exist_ok=True)
+    payload = {"language": language, "ts": time.time()}
+    with open(_language_file_path(store_dir, client_key), "w", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+    _prune_stale_languages(store_dir, payload["ts"])
+
+
+def get_last_requested_language_for_client(client_key: str) -> str | None:
+    """Return the most recent language requested by an STT client."""
+    store_dir = _get_language_store_dir()
+    data = _read_language_payload(store_dir, client_key)
+    if not data:
+        return None
+    if _is_stale(data.get("ts")):
+        _remove_language_file(store_dir, client_key)
+        return None
+    return data.get("language")
+
+
+def _read_language_payload(store_dir: str, client_key: str) -> dict | None:
+    path = _language_file_path(store_dir, client_key)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if isinstance(payload, dict):
+            return payload
+    except Exception:
+        return None
+    return None
+
+
+def _remove_language_file(store_dir: str, client_key: str) -> None:
+    path = _language_file_path(store_dir, client_key)
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+    except Exception:
+        pass
+
+
+def _prune_stale_languages(store_dir: str, now: float) -> None:
+    try:
+        for filename in os.listdir(store_dir):
+            if not filename.startswith("wyoming_lang_") or not filename.endswith(".json"):
+                continue
+            path = os.path.join(store_dir, filename)
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                ts = payload.get("ts")
+            except Exception:
+                ts = None
+            if _is_stale(ts, now):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+    except FileNotFoundError:
+        return
+
+
+def _is_stale(ts: float | None, now: float | None = None) -> bool:
+    if not isinstance(ts, (int, float)):
+        return True
+    current = now if now is not None else time.time()
+    return current - ts > _LANGUAGE_TTL_SEC
+
+
+def _get_language_store_dir() -> str:
+    return str(get_log_file_path().parent)
+
+
+def _language_file_path(store_dir: str, client_key: str) -> str:
+    safe_key = "".join(c if c.isalnum() or c in (".", "-", "_") else "_" for c in client_key)
+    return os.path.join(store_dir, f"wyoming_lang_{safe_key}.json")
 
 
 async def main():
