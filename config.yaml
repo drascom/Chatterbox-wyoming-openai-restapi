@@ -1,11 +1,11 @@
 server:
   host: 0.0.0.0
-  port: 8004
+  port: 8000
   use_ngrok: false
   use_auth: false
   auth_username: user
   auth_password: password
-  log_file_path: logs\tts_server.log
+  log_file_path: logs/tts_server.log
   log_file_max_size_mb: 10
   log_file_backup_count: 5
 model:
@@ -14,35 +14,19 @@ tts_engine:
   device: cuda
   predefined_voices_path: voices
   reference_audio_path: reference_audio
-  default_voice_id: Emily.wav
-  multilingual_model_enabled: true
-  voice_language_map:
-    ayhan.mp3: tr-TR
-    Abigail.wav: tr-TR
-    Adrian.wav: en-US
-    Alexander.wav: tr-TR
-    Alice.wav: en-US
-    Austin.wav: tr-TR
-    Axel.wav: en-US
-    Connor.wav: en-US
-    Cora.wav: en-US
-    Elena.wav: en-US
-    Eli.wav: en-US
-    Emily.wav: en-US
-    Everett.wav: en-US
-    Gabriel.wav: en-US
-    Gianna.wav: en-US
-    serdar.mp3: tr-TR
+  default_voice_id: default_sample.wav
+  multilingual_model_enabled: false
+  voice_language_map: {}
 paths:
   model_cache: model_cache
   output: outputs
 generation_defaults:
-  temperature: 0.6
-  exaggeration: 0.4
-  cfg_weight: 1
-  seed: 42
-  speed_factor: 1
-  language: tr-TR
+  temperature: 0.8
+  exaggeration: 0.5
+  cfg_weight: 0.5
+  seed: 0
+  speed_factor: 1.0
+  language: en
 audio_output:
   format: wav
   sample_rate: 24000
@@ -53,13 +37,16 @@ wyoming:
   port: 10200
   advertise_name: Chatterbox TTS (Wyoming)
   languages:
-  - tr-TR
-  - en-US
+  - en
+  - tr
   sample_rate: 24000
   pcm_width: 2
   channels: 1
   split_text: true
   chunk_size: 120
+wyoming_stt:
+  host: 0.0.0.0
+  port: 10300
 ui_state:
   last_text: 'The solar system consists of the Sun and the astronomical objects gravitationally
     bound in orbit around it.
@@ -71,23 +58,23 @@ ui_state:
 
     '
   last_voice_mode: predefined
-  last_predefined_voice: Jade.wav
+  last_predefined_voice: Adrian.wav
   last_reference_file: none
   last_seed: 42
-  last_chunk_size: 240
+  last_chunk_size: 120
   last_split_text_enabled: true
   hide_chunk_warning: false
   hide_generation_warning: true
   theme: dark
-  last_language: tr-TR
+  last_language: en
 ui:
   title: Chatterbox TTS Server
   show_language_select: true
-  max_predefined_voices_in_dropdown: 50
+  max_predefined_voices_in_dropdown: 20
   languages:
-  - code: en-US
+  - code: en
     label: English
-  - code: tr-TR
+  - code: tr
     label: "T\xFCrk\xE7e"
 debug:
   save_intermediate_audio: false

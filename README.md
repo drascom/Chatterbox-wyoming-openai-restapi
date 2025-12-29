@@ -60,11 +60,12 @@ Wyoming TTS (Chatterbox):
 - Default port: `10200` (`WYOMING_PORT` overrides host side).
 - Provider name in HA: “Chatterbox TTS (Wyoming)”.
 - Voices are exposed by filename from `voices/` and `reference_audio/`.
-- Optional: add `tts_engine.voice_language_map` entries (e.g., `"Abigail.wav": "en"`) so HA can display voices like `Abigail (EN)` and the server can infer language when HA omits it.
+- All voices works with both Turkish and English
 
 Wyoming STT (Whisper):
 - Default port: `10300` (`WHISPER_PORT` overrides host side).
-- Whisper model is loaded in `wyoming_stt_server.py` and currently set to Turkish (`LANGUAGE="tr"`). Adjust there if you need a different language.
+- STT host/port can be overridden in `config.yaml` via `wyoming_stt.host` and `wyoming_stt.port`.
+- Whisper model is loaded in `wyoming_stt_server.py` and currently set to the `selimc/whisper-large-v3-turbo-turkish` model.
 
 
 ## Notes vs upstream

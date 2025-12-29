@@ -186,25 +186,29 @@
             </div>
         </nav>
 
-        <div id="model-loading-overlay" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center px-4">
-            <div class="bg-slate-800 text-white rounded-xl p-6 shadow-2xl max-w-md w-full space-y-3 text-center border border-slate-700">
+        <div id="model-loading-overlay"
+            class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+            <div
+                class="bg-slate-800 text-white rounded-xl p-6 shadow-2xl max-w-md w-full space-y-3 text-center border border-slate-700">
                 <div class="flex items-center justify-center space-x-3">
-                    <svg class="animate-spin h-6 w-6 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <svg class="animate-spin h-6 w-6 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                     </svg>
                     <p id="model-loading-title" class="text-lg font-semibold">Loading models...</p>
                 </div>
-                <p id="model-loading-detail" class="text-sm text-slate-200">First start may take a minute while models download.</p>
+                <p id="model-loading-detail" class="text-sm text-slate-200">First start may take a minute while models
+                    download.</p>
             </div>
         </div>
 
         <!-- Main Content Area -->
         <main>
             <div class="mx-auto max-w-7xl px-4 py-1 sm:px-6 lg:px-8">
-
                 <div id="notification-area" class="mb-6 space-y-3"></div>
-
+                <div id="audio-player-container" class="mt-2 mb-4"></div>
                 <div class="card-base">
                     <form id="tts-form" action="#" method="post" class="flex flex-col" onsubmit="return false;">
                         <div class="p-6 sm:p-8">
@@ -255,206 +259,189 @@
                                 Recommended chunk size: ~100-300 characters.
                             </p>
 
-                            <div class="mb-6">
-                                <label class="label-base mb-2">Voice Mode:</label>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <label
-                                        class="radio-label peer-checked:border-indigo-500 peer-checked:dark:border-indigo-500 peer-checked:ring-2 peer-checked:ring-indigo-500/30 peer-checked:dark:ring-indigo-500/40">
-                                        <input type="radio" name="voice_mode" value="predefined" class="hidden peer"
-                                            checked>
-                                        <span
-                                            class="radio-label-text peer-checked:text-indigo-600 dark:peer-checked:text-indigo-400">Predefined
-                                            Voices</span>
-                                    </label>
-                                    <label
-                                        class="radio-label peer-checked:border-indigo-500 peer-checked:dark:border-indigo-500 peer-checked:ring-2 peer-checked:ring-indigo-500/30 peer-checked:dark:ring-indigo-500/40">
-                                        <input type="radio" name="voice_mode" value="clone" class="hidden peer">
-                                        <span
-                                            class="radio-label-text peer-checked:text-indigo-600 dark:peer-checked:text-indigo-400">Voice
-                                            Cloning (Reference)</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div id="predefined-voice-options" class="mb-6">
-                                <label for="predefined-voice-select" class="label-base">Select Predefined Voice:</label>
-                                <div class="flex items-center gap-2">
-                                    <select id="predefined-voice-select" name="predefined_voice_select"
-                                        class="select-base flex-grow">
-                                        <option value="none">-- Select Voice --</option>
-                                    </select>
-                                    <input type="file" id="predefined-voice-file-input" class="hidden" multiple
-                                        accept=".wav,.mp3" aria-label="Upload predefined voice file">
-                                    <button type="button" id="predefined-voice-import-button" class="btn-secondary"
-                                        title="Import new predefined voice files">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                            class="w-5 h-5 mr-1.5">
-                                            <path
-                                                d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
-                                            <path
-                                                d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
-                                        </svg>
-                                        Import
-                                    </button>
-                                    <button type="button" id="predefined-voice-refresh-button" class="btn-secondary"
-                                        title="Refresh predefined voice list">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                            class="w-5 h-5">
-                                            <path fill-rule="evenodd"
-                                                d="M15.312 11.424a5.5 5.5 0 0 1-9.201-4.42 5.5 5.5 0 0 1 10.89 2.01a.75.75 0 0 1-1.49.174a4 4 0 0 0-7.486-2.641a4 4 0 0 0 6.688 2.947a.75.75 0 0 1 .999.057l-.004-.005ZM4.688 8.576a5.5 5.5 0 0 1 9.201 4.42a5.5 5.5 0 0 1-10.89-2.01a.75.75 0 0 1 1.49-.174a4 4 0 0 0 7.486 2.641a4 4 0 0 0-6.688-2.947a.75.75 0 0 1-.999-.057l.004.005Z"
-                                                clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="mb-6">
-                                <details class="group">
-                                    <summary class="list-none flex cursor-pointer items-center group">
-                                        <span
-                                            class="text-sm font-medium label-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Voice
-                                            Management</span>
-                                        <span
-                                            class="ml-1.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
-                                            <svg class="group-open:rotate-180 h-5 w-5 transition-transform duration-200 ease-in-out"
-                                                viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd"
-                                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                    clip-rule="evenodd" />
-                                            </svg>
-                                        </span>
-                                    </summary>
-                                    <div id="voice-management" class="mt-4">
-                                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                                            Assign a language label for each voice so Home Assistant can display it and
-                                            the server can infer language when HA omits it.
-                                        </p>
-                                        <div class="rounded-lg border border-slate-200 dark:border-slate-700">
-                                            <div
-                                                class="grid grid-cols-2 gap-2 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900">
-                                                <span>Voice</span>
-                                                <span>Language</span>
-                                            </div>
-                                            <div id="voice-language-list"
-                                                class="divide-y divide-slate-200 dark:divide-slate-700"></div>
-                                        </div>
-                                    </div>
-                                </details>
-                            </div>
-
-                            <div id="clone-options" class="mb-6 hidden">
-                                <label for="clone-reference-select" class="label-base">Reference Audio File</label>
-                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                                    Select an uploaded <code class="code-inline">.wav</code> or <code
-                                        class="code-inline">.mp3</code> file.
-                                    For best results, use clean audio recordings.
-                                </p>
-                                <div class="flex items-center gap-2">
-                                    <select id="clone-reference-select" name="clone_reference_select"
-                                        class="select-base flex-grow">
-                                        <option value="none">-- Select Reference File --</option>
-                                    </select>
-                                    <input type="file" id="clone-file-input" class="hidden" multiple accept=".wav,.mp3"
-                                        aria-label="Upload reference audio file">
-                                    <button type="button" id="clone-import-button" class="btn-secondary"
-                                        title="Import new reference files">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                            class="w-5 h-5 mr-1.5">
-                                            <path
-                                                d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
-                                            <path
-                                                d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
-                                        </svg>
-                                        Import
-                                    </button>
-                                    <button type="button" id="clone-refresh-button" class="btn-secondary"
-                                        title="Refresh reference file list">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                            class="w-5 h-5">
-                                            <path fill-rule="evenodd"
-                                                d="M15.312 11.424a5.5 5.5 0 0 1-9.201-4.42 5.5 5.5 0 0 1 10.89 2.01a.75.75 0 0 1-1.49.174a4 4 0 0 0-7.486-2.641a4 4 0 0 0 6.688 2.947a.75.75 0 0 1 .999.057l-.004-.005ZM4.688 8.576a5.5 5.5 0 0 1 9.201 4.42a5.5 5.5 0 0 1-10.89-2.01a.75.75 0 0 1 1.49-.174a4 4 0 0 0 7.486 2.641a4 4 0 0 0-6.688-2.947a.75.75 0 0 1-.999-.057l.004.005Z"
-                                                clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="mb-6">
-                                <details class="group" open>
-                                    <summary class="list-none flex cursor-pointer items-center group">
-                                        <span
-                                            class="text-sm font-medium label-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Generation
-                                            Parameters</span>
-                                        <span
-                                            class="ml-1.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
-                                            <svg class="group-open:rotate-180 h-5 w-5 transition-transform duration-200 ease-in-out"
-                                                viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd"
-                                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                    clip-rule="evenodd" />
-                                            </svg>
-                                        </span>
-                                    </summary>
-                                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-                                        <div>
-                                            <label for="temperature" class="label-base">Temperature (<span
-                                                    id="temperature-value"
-                                                    class="font-semibold tabular-nums">0.8</span>)</label>
-                                            <input type="range" id="temperature" name="temperature" min="0.1" max="1.5"
-                                                step="0.01" value="0.8" class="slider-base">
-                                        </div>
-                                        <div>
-                                            <label for="exaggeration" class="label-base">Exaggeration (<span
-                                                    id="exaggeration-value"
-                                                    class="font-semibold tabular-nums">0.5</span>)</label>
-                                            <input type="range" id="exaggeration" name="exaggeration" min="0.0"
-                                                max="2.0" step="0.01" value="0.5" class="slider-base">
-                                        </div>
-                                        <div>
-                                            <label for="cfg-weight" class="label-base">CFG Weight (<span
-                                                    id="cfg-weight-value"
-                                                    class="font-semibold tabular-nums">0.5</span>)</label>
-                                            <input type="range" id="cfg-weight" name="cfg_weight" min="0.0" max="2.0"
-                                                step="0.01" value="0.5" class="slider-base">
-                                        </div>
-                                        <div>
-                                            <label for="speed-factor" class="label-base">
-                                                Speed Factor (<span id="speed-factor-value"
-                                                    class="font-semibold tabular-nums">1.0</span>)
-                                                <span id="speed-factor-warning"
-                                                    class="text-xs text-yellow-600 dark:text-yellow-400 ml-2 hidden"></span>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                                    <div class="mb-6">
+                                        <label class="label-base mb-2">Voice Mode:</label>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <label
+                                                class="radio-label peer-checked:border-indigo-500 peer-checked:dark:border-indigo-500 peer-checked:ring-2 peer-checked:ring-indigo-500/30 peer-checked:dark:ring-indigo-500/40">
+                                                <input type="radio" name="voice_mode" value="predefined"
+                                                    class="hidden peer" checked>
+                                                <span
+                                                    class="radio-label-text peer-checked:text-indigo-600 dark:peer-checked:text-indigo-400">Predefined
+                                                    Voices</span>
                                             </label>
-                                            <input type="range" id="speed-factor" name="speed_factor" min="0.25"
-                                                max="4.0" step="0.05" value="1.0" class="slider-base">
-                                        </div>
-                                        <div>
-                                            <label for="seed" class="label-base">Generation Seed</label>
-                                            <div class="w-36">
-                                                <input type="number" id="seed" name="seed" value="0"
-                                                    placeholder="0 (or -1 for random)" class="input-base"
-                                                    title="Enter an integer seed for reproducible results, or -1 for random. 0 may also be random depending on engine.">
-                                            </div>
-                                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-                                                Integer for reproducible results. Some engines use 0 or -1 for random.
-                                            </p>
-                                        </div>
-                                        <div id="language-select-container">
-                                            <label for="language" class="label-base">Language</label>
-                                            <select id="language" name="language" class="select-base w-36">
-                                                <!-- Options are populated dynamically from config -->
-                                            </select>
-                                        </div>
-                                        <div class="col-span-1 md:col-span-2 mt-4 flex items-center gap-4">
-                                            <button id="save-gen-defaults-btn" type="button" class="btn-secondary">Save
-                                                Generation Parameters</button>
-                                            <span id="gen-defaults-status" class="text-xs hidden"></span>
+                                            <label
+                                                class="radio-label peer-checked:border-indigo-500 peer-checked:dark:border-indigo-500 peer-checked:ring-2 peer-checked:ring-indigo-500/30 peer-checked:dark:ring-indigo-500/40">
+                                                <input type="radio" name="voice_mode" value="clone" class="hidden peer">
+                                                <span
+                                                    class="radio-label-text peer-checked:text-indigo-600 dark:peer-checked:text-indigo-400">Voice
+                                                    Cloning (Reference)</span>
+                                            </label>
                                         </div>
                                     </div>
-                                </details>
-                            </div>
 
-                            <div class="mb-6">
-                                <details class="group" open> <!-- Server Config expanded by default -->
+                                    <div id="predefined-voice-options" class="mb-6">
+                                        <label for="predefined-voice-select" class="label-base">Select Predefined
+                                            Voice:</label>
+                                        <div class="flex items-center gap-2">
+                                            <select id="predefined-voice-select" name="predefined_voice_select"
+                                                class="select-base flex-grow">
+                                                <option value="none">-- Select Voice --</option>
+                                            </select>
+                                            <input type="file" id="predefined-voice-file-input" class="hidden" multiple
+                                                accept=".wav,.mp3" aria-label="Upload predefined voice file">
+                                            <button type="button" id="predefined-voice-import-button"
+                                                class="btn-secondary" title="Import new predefined voice files">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                                    fill="currentColor" class="w-5 h-5 mr-1.5">
+                                                    <path
+                                                        d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
+                                                    <path
+                                                        d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+                                                </svg>
+                                                Import
+                                            </button>
+                                            <button type="button" id="predefined-voice-refresh-button"
+                                                class="btn-secondary" title="Refresh predefined voice list">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                                    fill="currentColor" class="w-5 h-5">
+                                                    <path fill-rule="evenodd"
+                                                        d="M15.312 11.424a5.5 5.5 0 0 1-9.201-4.42 5.5 5.5 0 0 1 10.89 2.01a.75.75 0 0 1-1.49.174a4 4 0 0 0-7.486-2.641a4 4 0 0 0 6.688 2.947a.75.75 0 0 1 .999.057l-.004-.005ZM4.688 8.576a5.5 5.5 0 0 1 9.201 4.42a5.5 5.5 0 0 1-10.89-2.01a.75.75 0 0 1 1.49-.174a4 4 0 0 0 7.486 2.641a4 4 0 0 0-6.688-2.947a.75.75 0 0 1-.999-.057l.004.005Z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="clone-options" class="mb-6 hidden">
+                                        <label for="clone-reference-select" class="label-base">Reference Audio
+                                            File</label>
+                                        <div class="flex items-center gap-2">
+                                            <select id="clone-reference-select" name="clone_reference_select"
+                                                class="select-base flex-grow">
+                                                <option value="none">-- Select Reference File --</option>
+                                            </select>
+                                            <input type="file" id="clone-file-input" class="hidden" multiple
+                                                accept=".wav,.mp3" aria-label="Upload reference audio file">
+                                            <button type="button" id="clone-import-button" class="btn-secondary"
+                                                title="Import new reference files">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                                    fill="currentColor" class="w-5 h-5 mr-1.5">
+                                                    <path
+                                                        d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z" />
+                                                    <path
+                                                        d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+                                                </svg>
+                                                Import
+                                            </button>
+                                            <button type="button" id="clone-refresh-button" class="btn-secondary"
+                                                title="Refresh reference file list">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                                    fill="currentColor" class="w-5 h-5">
+                                                    <path fill-rule="evenodd"
+                                                        d="M15.312 11.424a5.5 5.5 0 0 1-9.201-4.42 5.5 5.5 0 0 1 10.89 2.01a.75.75 0 0 1-1.49.174a4 4 0 0 0-7.486-2.641a4 4 0 0 0 6.688 2.947a.75.75 0 0 1 .999.057l-.004-.005ZM4.688 8.576a5.5 5.5 0 0 1 9.201 4.42a5.5 5.5 0 0 1-10.89-2.01a.75.75 0 0 1 1.49-.174a4 4 0 0 0 7.486 2.641a4 4 0 0 0-6.688-2.947a.75.75 0 0 1-.999-.057l.004.005Z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 mb-2">
+                                            Select an uploaded <code class="code-inline">.wav</code> or <code
+                                                class="code-inline">.mp3</code> file.
+                                            For best results, use clean audio recordings.
+                                        </p>
+                                    </div>
+                                    <div class="mb-6">
+                                        <label class="label-base mb-2">Load Example Preset:</label>
+                                        <div id="presets-container" class="flex flex-wrap gap-2">
+                                            <p id="presets-placeholder"
+                                                class="text-sm text-slate-500 dark:text-slate-400">
+                                                Loading presets...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                                    <div class="mb-6">
+                                        <details class="group" open>
+                                            <summary class="list-none flex cursor-pointer items-center group">
+                                                <span
+                                                    class="text-sm font-medium label-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Generation
+                                                    Parameters</span>
+                                                <span
+                                                    class="ml-1.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
+                                                    <svg class="group-open:rotate-180 h-5 w-5 transition-transform duration-200 ease-in-out"
+                                                        viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd"
+                                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                            clip-rule="evenodd" />
+                                                    </svg>
+                                                </span>
+                                            </summary>
+                                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                                                <div>
+                                                    <label for="temperature" class="label-base">Temperature (<span
+                                                            id="temperature-value"
+                                                            class="font-semibold tabular-nums">0.8</span>)</label>
+                                                    <input type="range" id="temperature" name="temperature" min="0.1"
+                                                        max="1.5" step="0.01" value="0.8" class="slider-base">
+                                                </div>
+                                                <div>
+                                                    <label for="exaggeration" class="label-base">Exaggeration (<span
+                                                            id="exaggeration-value"
+                                                            class="font-semibold tabular-nums">0.5</span>)</label>
+                                                    <input type="range" id="exaggeration" name="exaggeration" min="0.0"
+                                                        max="2.0" step="0.01" value="0.5" class="slider-base">
+                                                </div>
+                                                <div>
+                                                    <label for="cfg-weight" class="label-base">CFG Weight (<span
+                                                            id="cfg-weight-value"
+                                                            class="font-semibold tabular-nums">0.5</span>)</label>
+                                                    <input type="range" id="cfg-weight" name="cfg_weight" min="0.0"
+                                                        max="2.0" step="0.01" value="0.5" class="slider-base">
+                                                </div>
+                                                <div>
+                                                    <label for="speed-factor" class="label-base">
+                                                        Speed Factor (<span id="speed-factor-value"
+                                                            class="font-semibold tabular-nums">1.0</span>)
+                                                        <span id="speed-factor-warning"
+                                                            class="text-xs text-yellow-600 dark:text-yellow-400 ml-2 hidden"></span>
+                                                    </label>
+                                                    <input type="range" id="speed-factor" name="speed_factor" min="0.25"
+                                                        max="4.0" step="0.05" value="1.0" class="slider-base">
+                                                </div>
+                                                <div>
+                                                    <label for="seed" class="label-base">Generation Seed</label>
+                                                    <div class="w-36">
+                                                        <input type="number" id="seed" name="seed" value="0"
+                                                            placeholder="0 (or -1 for random)" class="input-base"
+                                                            title="Enter an integer seed for reproducible results, or -1 for random. 0 may also be random depending on engine.">
+                                                    </div>
+                                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                                                        Integer for reproducible results. Some engines use 0 or -1 for
+                                                        random.
+                                                    </p>
+                                                </div>
+                                                <div id="language-select-container">
+                                                    <label for="language" class="label-base">Language</label>
+                                                    <select id="language" name="language" class="select-base w-36">
+                                                        <!-- Options are populated dynamically from config -->
+                                                    </select>
+                                                </div>
+                                                <div class="col-span-1 md:col-span-2 mt-4 flex items-center gap-4">
+                                                    <button id="save-gen-defaults-btn" type="button"
+                                                        class="btn-secondary">Save
+                                                        Generation Parameters</button>
+                                                    <span id="gen-defaults-status" class="text-xs hidden"></span>
+                                                </div>
+                                            </div>
+                                        </details>
+                                    </div>
+
+                                </div>
+                            </div>
+                            <hr class="mt-4">
+                            <div class="mt-4 mb-6">
+                                <details class="group"> <!-- Server Config expanded by default -->
                                     <summary class="list-none flex cursor-pointer items-center group">
                                         <span
                                             class="text-sm font-medium label-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Server
@@ -474,8 +461,10 @@
                                         <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
                                             These settings are loaded from <code class="code-inline">config.yaml</code>
                                             via an API call.
-                                            <strong class="font-medium">Restart the server</strong> to apply changes to
-                                            Host, Port, Model, or Path settings if modified here or directly in the
+                                            <strong class="font-medium">Restart the server</strong> to apply
+                                            changes to
+                                            Host, Port, Model, or Path settings if modified here or directly in
+                                            the
                                             file.
                                         </p>
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
@@ -486,8 +475,11 @@
                                                     Port</label><input type="number" id="config-server-port"
                                                     name="server.port" class="input-base text-sm"></div>
                                             <div><label for="config-tts-engine-device" class="label-base text-xs">TTS
-                                                    Device</label><input type="text" id="config-tts-engine-device"
-                                                    name="tts_engine.device" class="input-base text-sm"></div>
+                                                    Device</label><select id="config-tts-engine-device"
+                                                    name="tts_engine.device" class="select-base text-sm">
+                                                    <option value="cuda">cuda</option>
+                                                    <option value="cpu">cpu</option>
+                                                </select></div>
                                             <div><label for="config-tts-engine-default_voice_id"
                                                     class="label-base text-xs">Default Voice ID</label><input
                                                     type="text" id="config-tts-engine-default_voice_id"
@@ -496,13 +488,15 @@
                                                     Cache Path</label><input type="text" id="config-paths-model_cache"
                                                     name="paths.model_cache" class="input-base text-sm"></div>
                                             <div><label for="config-tts-engine-predefined_voices_path"
-                                                    class="label-base text-xs">Predefined Voices Path</label><input
-                                                    type="text" id="config-tts-engine-predefined_voices_path"
+                                                    class="label-base text-xs">Predefined Voices
+                                                    Path</label><input type="text"
+                                                    id="config-tts-engine-predefined_voices_path"
                                                     name="tts_engine.predefined_voices_path" class="input-base text-sm">
                                             </div>
                                             <div><label for="config-tts-engine-reference_audio_path"
-                                                    class="label-base text-xs">Reference Audio Path</label><input
-                                                    type="text" id="config-tts-engine-reference_audio_path"
+                                                    class="label-base text-xs">Reference Audio
+                                                    Path</label><input type="text"
+                                                    id="config-tts-engine-reference_audio_path"
                                                     name="tts_engine.reference_audio_path" class="input-base text-sm">
                                             </div>
                                             <div><label for="config-paths-output" class="label-base text-xs">Output
@@ -515,7 +509,30 @@
                                             <div><label for="config-audio_output-sample_rate"
                                                     class="label-base text-xs">Audio Sample Rate</label><input
                                                     type="number" id="config-audio_output-sample_rate"
-                                                    name="audio_output.sample_rate" class="input-base text-sm"></div>
+                                                    name="audio_output.sample_rate" class="input-base text-sm">
+                                            </div>
+                                            <div class="flex items-center gap-4">
+                                                <span class="label-base text-xs">Wyoming Enabled</span>
+                                                <label
+                                                    class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                                    <input type="radio" name="wyoming.enabled" value="true"
+                                                        class="h-4 w-4 rounded-full border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:focus:ring-offset-slate-800">
+                                                    Yes
+                                                </label>
+                                                <label
+                                                    class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                                    <input type="radio" name="wyoming.enabled" value="false"
+                                                        class="h-4 w-4 rounded-full border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:focus:ring-offset-slate-800">
+                                                    No
+                                                </label>
+                                            </div>
+                                            <div><label for="config-wyoming-port" class="label-base text-xs">Wyoming TTS
+                                                    Port</label><input type="number" id="config-wyoming-port"
+                                                    name="wyoming.port" class="input-base text-sm">
+                                                <label for="config-wyoming-stt-port" class="label-base text-xs">Wyoming
+                                                    STT Port</label><input type="number" id="config-wyoming-stt-port"
+                                                    name="wyoming_stt.port" class="input-base text-sm">
+                                            </div>
 
                                             <div
                                                 class="col-span-1 md:col-span-2 mt-4 flex flex-col md:flex-row gap-4 items-center">
@@ -538,14 +555,6 @@
                                     </div>
                                 </details>
                             </div>
-
-                            <div class="mb-6">
-                                <label class="label-base mb-2">Load Example Preset:</label>
-                                <div id="presets-container" class="flex flex-wrap gap-2">
-                                    <p id="presets-placeholder" class="text-sm text-slate-500 dark:text-slate-400">
-                                        Loading presets...</p>
-                                </div>
-                            </div>
                         </div>
 
                         <div class="card-footer">
@@ -560,7 +569,6 @@
                     </form>
                 </div>
 
-                <div id="audio-player-container" class="mt-8"></div>
 
                 <div class="mt-10">
                     <h2 class="card-header mb-4 text-base font-semibold">Tips & Tricks</h2>
@@ -665,23 +673,6 @@
             <div class="modal-actions">
                 <button id="generation-warning-acknowledge" type="button" class="btn-primary">Acknowledge &
                     Generate</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="predefined-voice-upload-modal" class="modal-overlay hidden opacity-0" data-state="closed">
-        <div class="modal-box">
-            <h3 class="modal-title">Import Predefined Voice</h3>
-            <div class="modal-content">
-                <p class="mb-3">Choose a language label for the voice files you are about to upload.</p>
-                <label for="predefined-voice-upload-language" class="label-base">Language</label>
-                <select id="predefined-voice-upload-language" class="select-base w-40">
-                    <option value="">Auto</option>
-                </select>
-            </div>
-            <div class="modal-actions">
-                <button id="predefined-voice-upload-cancel" type="button" class="btn-secondary">Cancel</button>
-                <button id="predefined-voice-upload-confirm" type="button" class="btn-primary">Choose Files</button>
             </div>
         </div>
     </div>

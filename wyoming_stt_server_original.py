@@ -2,13 +2,11 @@ import asyncio
 import io
 import logging
 import threading
-import warnings
 
 import numpy as np
 import torch
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
+import whisper
 
-from config import get_wyoming_stt_host, get_wyoming_stt_port
 from wyoming.info import Describe, Info, AsrProgram, AsrModel, Attribution
 from wyoming.server import AsyncEventHandler, AsyncServer
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
@@ -16,37 +14,24 @@ from wyoming.asr import Transcribe, Transcript
 
 # CONFIGURATION
 # ---------------------
-MODEL_ID = "selimc/whisper-large-v3-turbo-turkish"
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
-LANGUAGES = ["tr", "tr-TR"]
+PORT = 10300  # Default Wyoming STT port
+MODEL_SIZE = "small"  # Options: tiny, base, small, medium, large-v3
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+LANGUAGE = "tr"  # Force Turkish
 # ---------------------
 
 logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger(__name__)
-warnings.filterwarnings(
-    "ignore",
-    message=".*LoRACompatibleLinear.*",
-    category=FutureWarning,
-)
 
-# Global model/processor
-asr_model = None
-asr_processor = None
-
+# Global model variable
+whisper_model = None
 
 def load_model():
     """Load the Whisper model once at startup."""
-    global asr_model, asr_processor
-    _LOGGER.info("Loading Whisper model '%s' on %s...", MODEL_ID, DEVICE)
-    asr_model = AutoModelForSpeechSeq2Seq.from_pretrained(
-        MODEL_ID, torch_dtype=TORCH_DTYPE, low_cpu_mem_usage=True, use_safetensors=True
-    )
-    asr_model.to(DEVICE)
-    asr_model.eval()
-    asr_processor = AutoProcessor.from_pretrained(MODEL_ID)
+    global whisper_model
+    _LOGGER.info(f"Loading Whisper model '{MODEL_SIZE}' on {DEVICE}...")
+    whisper_model = whisper.load_model(MODEL_SIZE, device=DEVICE)
     _LOGGER.info("Whisper model loaded.")
-
 
 class WyomingSTTHandler(AsyncEventHandler):
     """Event handler for Wyoming STT."""
@@ -60,6 +45,7 @@ class WyomingSTTHandler(AsyncEventHandler):
         if AudioStart.is_type(event.type):
             self.audio_buffer = io.BytesIO()
             self.is_receiving = True
+            _LOGGER.info("Received AudioStart from client")
 
         elif AudioChunk.is_type(event.type):
             if self.is_receiving:
@@ -68,15 +54,25 @@ class WyomingSTTHandler(AsyncEventHandler):
 
         elif AudioStop.is_type(event.type):
             self.is_receiving = False
+            _LOGGER.info("Received AudioStop from client. Transcribing...")
             await self._transcribe()
 
         elif Transcribe.is_type(event.type):
-            pass
+            _LOGGER.info("Received Transcribe request from client: %s", self._event_summary(event))
 
         elif Describe.is_type(event.type):
+            _LOGGER.info("Received Describe request from client: %s", self._event_summary(event))
             await self._handle_describe()
 
         return True
+
+    @staticmethod
+    def _event_summary(event) -> str:
+        """Best-effort summary of a Wyoming event for logging."""
+        event_data = getattr(event, "data", None)
+        if event_data is None:
+            return f"type={getattr(event, 'type', 'unknown')}"
+        return f"type={getattr(event, 'type', 'unknown')}, data={event_data}"
 
     async def _handle_describe(self):
         """Tell Home Assistant we are a Turkish STT service."""
@@ -90,71 +86,62 @@ class WyomingSTTHandler(AsyncEventHandler):
                     version="1.0.0",
                     models=[
                         AsrModel(
-                            name=MODEL_ID,
-                            description=f"Whisper {MODEL_ID} (Turkish)",
+                            name=MODEL_SIZE,
+                            description=f"Whisper {MODEL_SIZE} (Turkish)",
                             attribution=Attribution(name="OpenAI", url="https://github.com/openai/whisper"),
                             installed=True,
-                            languages=LANGUAGES,
-                            version="1.0.0",
+                            # --- CHANGE THIS LINE ---
+                            languages=["tr-TR","en-GB"],  
+                            # ------------------------
+                            version="1.0.0"
                         )
                     ],
                 )
             ]
         )
         await self.write_event(info.event())
-
+        _LOGGER.info("Sent Info/Describe packet to Home Assistant")
+                
     async def _transcribe(self):
         """Process the buffered audio and send text back."""
-        global asr_model, asr_processor
+        global whisper_model
 
+        # 1. Get bytes
         data = self.audio_buffer.getvalue()
         if not data:
             _LOGGER.warning("No audio data received.")
             return
 
-        # Home Assistant sends 16kHz, 16-bit mono PCM by default
+        # 2. Convert Raw PCM (16-bit, 16kHz) to Float32 (-1.0 to 1.0)
+        # Home Assistant sends 16kHz, 16-bit mono by default
         audio_np = np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768.0
 
-        if asr_model is None or asr_processor is None:
-            _LOGGER.error("ASR model not loaded.")
-            return
-
+        # 3. Transcribe (Run in thread to not block the server loop)
         try:
             def run_inference():
-                inputs = asr_processor(
-                    audio_np,
-                    sampling_rate=16000,
-                    return_tensors="pt",
-                    return_attention_mask=True,
+                return whisper_model.transcribe(
+                    audio_np, 
+                    language=LANGUAGE,
+                    fp16=(DEVICE == "cuda")
                 )
-                input_features = inputs.input_features.to(
-                    DEVICE, dtype=asr_model.dtype
-                )
-                attention_mask = None
-                if hasattr(inputs, "attention_mask") and inputs.attention_mask is not None:
-                    attention_mask = inputs.attention_mask.to(DEVICE)
-                with torch.no_grad():
-                    generated_ids = asr_model.generate(
-                        input_features=input_features,
-                        attention_mask=attention_mask,
-                        use_cache=False,
-                    )
-                return asr_processor.batch_decode(generated_ids, skip_special_tokens=True)
 
+            # Run in thread
             result = await asyncio.to_thread(run_inference)
-            text = (result[0] if result else "").strip()
+            text = result["text"].strip()
+            
+            _LOGGER.info(f"Transcription: '{text}'")
+
+            # 4. Send Transcript back to HA
             await self.write_event(Transcript(text=text).event())
 
         except Exception as e:
-            _LOGGER.error("Transcription failed: %s", e, exc_info=True)
+            _LOGGER.error(f"Transcription failed: {e}", exc_info=True)
 
 
 async def main():
     load_model()
-    host = get_wyoming_stt_host()
-    port = get_wyoming_stt_port()
-    server = AsyncServer.from_uri(f"tcp://{host}:{port}")
-    _LOGGER.info("Wyoming STT Server running on %s:%s", host, port)
+    server = AsyncServer.from_uri(f"tcp://0.0.0.0:{PORT}")
+    _LOGGER.info(f"Wyoming STT Server running on 0.0.0.0:{PORT}")
     try:
         await server.run(WyomingSTTHandler)
     except KeyboardInterrupt:
@@ -167,12 +154,11 @@ def start_wyoming_stt_server_in_background() -> threading.Thread:
         try:
             asyncio.run(main())
         except Exception as exc:
-            _LOGGER.error("Wyoming STT server terminated unexpectedly: %s", exc, exc_info=True)
+            _LOGGER.error(f"Wyoming STT server terminated unexpectedly: {exc}", exc_info=True)
 
     thread = threading.Thread(target=runner, name="wyoming-stt-server", daemon=True)
     thread.start()
     return thread
-
 
 if __name__ == "__main__":
     try:

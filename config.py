@@ -97,6 +97,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "split_text": True,  # Use the same chunking strategy as REST by default.
         "chunk_size": 120,  # Approximate chars per chunk when splitting text.
     },
+    "wyoming_stt": {  # Settings for the optional Wyoming STT server.
+        "host": "0.0.0.0",  # Host address for the Wyoming STT server.
+        "port": 10300,  # Port for Wyoming STT TCP server.
+    },
     "ui_state": {  # Stores user interface preferences and last-used values.
         "last_text": "",  # Last text entered by the user.
         "last_voice_mode": "predefined",  # Last selected voice mode ('predefined' or 'clone').
@@ -933,6 +937,20 @@ def get_wyoming_chunk_size() -> int:
     """Returns the target chunk size for Wyoming text splitting."""
     return config_manager.get_int(
         "wyoming.chunk_size", _get_default_from_structure("wyoming.chunk_size")
+    )
+
+
+def get_wyoming_stt_host() -> str:
+    """Returns the Wyoming STT server host."""
+    return config_manager.get_string(
+        "wyoming_stt.host", _get_default_from_structure("wyoming_stt.host")
+    )
+
+
+def get_wyoming_stt_port() -> int:
+    """Returns the Wyoming STT server port."""
+    return config_manager.get_int(
+        "wyoming_stt.port", _get_default_from_structure("wyoming_stt.port")
     )
 
 

@@ -27,7 +27,6 @@ from config import (
     get_wyoming_channels,
     get_wyoming_enabled,
     get_wyoming_host,
-    get_wyoming_languages,
     get_wyoming_pcm_width,
     get_wyoming_port,
     get_wyoming_sample_rate,
@@ -46,6 +45,8 @@ logger = logging.getLogger(__name__)
 class WyomingTTSService(AsyncEventHandler):
     """Handle Wyoming Describe/Synthesize events by reusing the existing engine pipeline."""
 
+    HARD_CODED_LANGUAGES = ["tr-TR", "en-GB"]
+
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         super().__init__(reader, writer)
         self.sample_rate = get_wyoming_sample_rate() or get_audio_sample_rate()
@@ -53,31 +54,7 @@ class WyomingTTSService(AsyncEventHandler):
         self.pcm_width = max(1, get_wyoming_pcm_width())
         self.split_text = get_wyoming_split_text()
         self.chunk_size = max(50, get_wyoming_chunk_size())
-
-        # --- LOGIC FIX START ---
-        # 1. Get languages from config
-        configured_langs = get_wyoming_languages() or []
-
-        # 2. Get the engine default language (e.g., 'tr')
-        engine_default = get_gen_default_language()
-
-        # 3. If config is empty, use engine default
-        if not configured_langs:
-            configured_langs = [engine_default]
-
-        # 4. Normalize (convert 'tr' to 'tr-TR')
-        normalized_langs = self._normalize_languages(configured_langs)
-
-        # 5. PRIORITY ENFORCEMENT:
-        # If the engine is set to 'tr', ensure 'tr-TR' is at index 0
-        if engine_default == 'tr' and 'tr-TR' in normalized_langs:
-            normalized_langs.remove('tr-TR')
-            normalized_langs.insert(0, 'tr-TR')
-        elif engine_default == 'tr' and 'tr-TR' not in normalized_langs:
-            normalized_langs.insert(0, 'tr-TR')
-
-        self.languages = normalized_langs
-        # --- LOGIC FIX END ---
+        self.languages = list(self.HARD_CODED_LANGUAGES)
 
         self.voice_catalog = utils.get_predefined_voices()
         self.reference_catalog = utils.get_valid_reference_files()
@@ -141,8 +118,8 @@ class WyomingTTSService(AsyncEventHandler):
         """Normalize language codes to BCP 47 tags."""
         # Maps generic codes to the specific region HA expects
         fallback_regions = {
-            "en": "en-GB",
-            "tr": "tr-TR"
+            "tr": "tr-TR",
+            "en": "en-GB"            
         }
 
         normalized = []
@@ -219,7 +196,7 @@ class WyomingTTSService(AsyncEventHandler):
                     languages=self.languages,
                     attribution=Attribution(name="Chatterbox", url="https://github.com/resemble-ai/chatterbox"),
                     installed=True,
-                    version=None,
+                    version=1.0,
                 )
             )
         for reference_file in self.reference_catalog:

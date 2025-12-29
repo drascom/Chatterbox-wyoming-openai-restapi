@@ -36,3 +36,5 @@ praat-parselmouth # For unvoiced segment removal
 librosa # for changes to sampling
 hf-transfer
 peft # Needed by diffusers to use PEFT backend and silence LoRACompatibleLinear deprecation
+peft
+setuptools<81

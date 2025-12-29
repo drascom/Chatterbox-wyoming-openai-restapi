@@ -25,7 +25,6 @@ from fastapi import (
     Request,
     File,
     UploadFile,
-    Form,
     BackgroundTasks,
 )
 from fastapi.responses import (
@@ -60,7 +59,8 @@ from config import (
     get_wyoming_enabled,
     get_wyoming_host,
     get_wyoming_port,
-    get_voice_language_map,
+    get_wyoming_stt_host,
+    get_wyoming_stt_port,
 )
 
 import engine  # TTS Engine interface
@@ -175,7 +175,7 @@ async def lifespan(app: FastAPI):
             stt_thread = wyoming_stt_server.start_wyoming_stt_server_in_background()
             if stt_thread:
                 logger.info(
-                    "Wyoming STT server started."
+                    f"Wyoming STT server started on {get_wyoming_stt_host()}:{get_wyoming_stt_port()}."
                 )
             else:
                 logger.warning(
@@ -297,7 +297,6 @@ async def get_ui_initial_data():
             "config": full_config,
             "reference_files": reference_files,
             "predefined_voices": predefined_voices,
-            "voice_language_map": get_voice_language_map(),
             "presets": loaded_presets,
             "initial_gen_result": initial_gen_result_placeholder,
             "model_status": engine.get_model_status(),
@@ -515,7 +514,6 @@ async def upload_reference_audio_endpoint(files: List[UploadFile] = File(...)):
 @app.post("/upload_predefined_voice", tags=["File Management"])
 async def upload_predefined_voice_endpoint(
     files: List[UploadFile] = File(...),
-    language: Optional[str] = Form(None),
 ):
     """
     Handles uploading of predefined voice files (.wav, .mp3).
@@ -525,8 +523,6 @@ async def upload_predefined_voice_endpoint(
     predefined_voices_path = get_predefined_voices_path(ensure_absolute=True)
     uploaded_filenames_successfully: List[str] = []
     upload_errors: List[Dict[str, str]] = []
-    requested_language = (language or "").strip()
-
     for file in files:
         if not file.filename:
             upload_errors.append(
@@ -585,22 +581,10 @@ async def upload_predefined_voice_endpoint(
     all_current_predefined_voices = (
         utils.get_predefined_voices()
     )  # Fetches formatted list
-    if requested_language and uploaded_filenames_successfully:
-        current_map = config_manager.get("tts_engine.voice_language_map", {})
-        if not isinstance(current_map, dict):
-            current_map = {}
-        updated_map = dict(current_map)
-        for filename in uploaded_filenames_successfully:
-            updated_map[filename] = requested_language
-        if updated_map != current_map:
-            config_manager.update_and_save(
-                {"tts_engine": {"voice_language_map": updated_map}}
-            )
     response_data = {
         "message": f"Processed {len(files)} predefined voice file(s).",
         "uploaded_files": uploaded_filenames_successfully,  # List of raw filenames uploaded
         "all_predefined_voices": all_current_predefined_voices,  # Formatted list for UI
-        "voice_language_map": get_voice_language_map(),
         "errors": upload_errors,
     }
     status_code = (
@@ -611,37 +595,6 @@ async def upload_predefined_voice_endpoint(
             f"Upload to /upload_predefined_voice completed with {len(upload_errors)} error(s)."
         )
     return JSONResponse(content=response_data, status_code=status_code)
-
-
-@app.get("/api/voice-language-map", tags=["Voice Management"])
-async def get_voice_language_map_endpoint():
-    """Returns the current voice-to-language mapping."""
-    return {"voice_language_map": get_voice_language_map()}
-
-
-class VoiceLanguageUpdateRequest(BaseModel):
-    filename: str
-    language: Optional[str] = None
-
-
-@app.post("/api/voice-language-map", tags=["Voice Management"])
-async def update_voice_language_map_endpoint(request: VoiceLanguageUpdateRequest):
-    """Updates or clears a single voice-to-language mapping."""
-    filename = utils.sanitize_filename(request.filename)
-    language = (request.language or "").strip()
-    if not filename:
-        raise HTTPException(status_code=400, detail="Missing filename for voice mapping.")
-    current_map = config_manager.get("tts_engine.voice_language_map", {})
-    if not isinstance(current_map, dict):
-        current_map = {}
-    updated_map = dict(current_map)
-    if language:
-        updated_map[filename] = language
-    else:
-        updated_map.pop(filename, None)
-    if updated_map != current_map:
-        config_manager.update_and_save({"tts_engine": {"voice_language_map": updated_map}})
-    return {"voice_language_map": updated_map}
 
 
 # --- TTS Generation Endpoint ---
