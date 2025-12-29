@@ -19,7 +19,6 @@ openai-whisper
 onnx==1.15.0  # matches protobuf>=3.20.3,<4 and has wheels for py3.11
 protobuf>=3.20.3,<4.0.0  # aligns onnx with the rest of the stack
 resemble-perth==1.0.1  # required by chatterbox-tts watermarker
-setuptools  # needed for pkg_resources used by resemble-perth
 
 # Configuration & Utilities
 pydantic
@@ -36,5 +35,3 @@ praat-parselmouth # For unvoiced segment removal
 librosa # for changes to sampling
 hf-transfer
 peft # Needed by diffusers to use PEFT backend and silence LoRACompatibleLinear deprecation
-peft
-setuptools<81

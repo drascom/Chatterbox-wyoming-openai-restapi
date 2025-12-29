@@ -8,9 +8,11 @@ import io
 import logging
 import logging.handlers  # For RotatingFileHandler
 import shutil
+import subprocess
 import time
 import uuid
 import yaml  # For loading presets
+import warnings
 import numpy as np
 import librosa  # For potential direct use if needed, though utils.py handles most
 from pathlib import Path
@@ -107,6 +109,11 @@ logging.basicConfig(
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("watchfiles").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+warnings.filterwarnings(
+    "ignore",
+    message=".*pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+)
 
 # --- Global Variables & Application Setup ---
 startup_complete_event = threading.Event()  # For coordinating browser opening
@@ -133,6 +140,36 @@ def _delayed_browser_open(host: str, port: int):
     except Exception as e:
         logger.error(f"Failed to open browser automatically: {e}", exc_info=True)
 
+def _ensure_ffmpeg_available() -> None:
+    """Ensure ffmpeg is available; attempt installation on Debian/Ubuntu."""
+    if shutil.which("ffmpeg"):
+        return
+    logger.warning("ffmpeg not found. Attempting to install via apt-get.")
+    if os.geteuid() != 0:
+        logger.warning("Skipping ffmpeg install: requires root privileges.")
+        return
+    if not shutil.which("apt-get"):
+        logger.warning("Skipping ffmpeg install: apt-get not available.")
+        return
+    try:
+        subprocess.run(
+            ["apt-get", "update"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["apt-get", "install", "-y", "--no-install-recommends", "ffmpeg"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if shutil.which("ffmpeg"):
+            logger.info("ffmpeg installed successfully.")
+        else:
+            logger.warning("ffmpeg install completed but binary not found.")
+    except Exception as exc:
+        logger.warning("ffmpeg auto-install failed: %s", exc)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -153,6 +190,7 @@ async def lifespan(app: FastAPI):
         for p in paths_to_ensure:
             p.mkdir(parents=True, exist_ok=True)
 
+        _ensure_ffmpeg_available()
         engine.start_model_load_in_background()
         host_address = get_host()
         server_port = get_port()
