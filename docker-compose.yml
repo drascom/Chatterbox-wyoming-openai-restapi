@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     command: ["python3", "server.py"]
     ports:
-      - "${PORT:-8004}:8000"
+      - "${PORT:-8001}:8000"
     volumes:
       - ./config.yaml:/app/config.yaml
       - ./voices:/app/voices
@@ -35,7 +35,7 @@ services:
       dockerfile: Dockerfile
     command: ["python3", "stt_http_server.py"]
     ports:
-      - "${STT_API_PORT:-10400}:10400"
+      - "${STT_API_PORT:-8000}:10400"
     expose:
       - "10400"
     volumes:

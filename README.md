@@ -38,15 +38,15 @@ docker compose up -d --build
 ```
 
 The compose file uses Docker internal DNS between services:
-- `chatterbox-tts` serves FastAPI/UI on container port `8000` and host port `${PORT:-8004}`.
-- `whisper-stt` serves STT HTTP API on container port `10400` and host port `${STT_API_PORT:-10400}`.
+- `chatterbox-tts` serves FastAPI/UI on container port `8000` and host port `${PORT:-8001}`.
+- `whisper-stt` serves STT HTTP API on container port `10400` and host port `${STT_API_PORT:-8000}`.
 - `wyoming-gateway` publishes Wyoming TTS/STT on host `${WYOMING_PORT:-10200}` and `${WHISPER_PORT:-10300}`.
 
 ### Docker run (single role examples)
 TTS API/UI container:
 ```
 docker run --rm --gpus all \
-  -p 8004:8000 \
+  -p 8001:8000 \
   -v $PWD/config.yaml:/app/config.yaml \
   -v $PWD/outputs:/app/outputs \
   -v $PWD/voices:/app/voices \
@@ -59,7 +59,7 @@ docker run --rm --gpus all \
 When developing inside this repo, rebuild the image locally so you can test your changes:
 ```
 docker build -t chatterbox-wyoming-openai-restapi .
-docker run --rm --gpus all -p 8004:8000 \
+docker run --rm --gpus all -p 8001:8000 \
   -v $PWD/config.yaml:/app/config.yaml \
   -v $PWD/outputs:/app/outputs \
   -v $PWD/voices:/app/voices \
@@ -114,7 +114,7 @@ Whisper STT container also exposes public HTTP endpoints for external callers:
 
 Example:
 ```
-curl -sS -X POST "http://localhost:10400/v1/audio/transcriptions" \
+curl -sS -X POST "http://localhost:8000/v1/audio/transcriptions" \
   -F "file=@sample.wav" \
   -F "model=whisper-1" \
   -F "language=tr" \
