@@ -85,6 +85,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "sample_rate": 24000,  # Sample rate of the output audio in Hz.
         "max_reference_duration_sec": 30,  # Maximum duration for reference audio files.
     },
+    "audio_processing": {
+        "enable_silence_trimming": False,
+        "enable_internal_silence_fix": False,
+        "enable_unvoiced_removal": False,
+    },
     "wyoming": {  # Settings for the optional Wyoming protocol server.
         "enabled": False,  # Whether to start the Wyoming server.
         "host": "0.0.0.0",  # Host address for the Wyoming server.
@@ -95,7 +100,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "pcm_width": 2,  # Bytes per sample (2 = 16-bit PCM).
         "channels": 1,  # Mono output for Wyoming.
         "split_text": True,  # Use the same chunking strategy as REST by default.
-        "chunk_size": 120,  # Approximate chars per chunk when splitting text.
+        "chunk_size": 220,  # Approximate chars per chunk when splitting text.
     },
     "wyoming_stt": {  # Settings for the optional Wyoming STT server.
         "host": "0.0.0.0",  # Host address for the Wyoming STT server.
@@ -107,7 +112,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "last_predefined_voice": None,  # Filename of the last used predefined voice.
         "last_reference_file": None,  # Filename of the last used reference audio file.
         "last_seed": 0,  # Last used generation seed.
-        "last_chunk_size": 120,  # Last used chunk size for text splitting in UI.
+        "last_chunk_size": 220,  # Last used chunk size for text splitting in UI.
         "last_split_text_enabled": True,  # Whether text splitting was last enabled in UI.
         "hide_chunk_warning": False,  # Flag to hide the chunking warning modal.
         "hide_generation_warning": False,  # Flag to hide the general generation quality notice modal.

@@ -111,6 +111,39 @@ warnings.filterwarnings(
 
 # --- Global Variables & Application Setup ---
 startup_complete_event = threading.Event()  # For coordinating browser opening
+_reference_validation_cache_lock = threading.Lock()
+_reference_validation_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def _file_signature(path: Path) -> tuple[int, int]:
+    """Return a stable signature for cache invalidation."""
+    stat = path.stat()
+    return (stat.st_mtime_ns, stat.st_size)
+
+
+def _validate_reference_audio_cached(path: Path, max_duration_sec: int) -> tuple[bool, str]:
+    """Validate reference audio with mtime/size-based cache."""
+    signature = _file_signature(path)
+    cache_key = str(path.resolve())
+
+    with _reference_validation_cache_lock:
+        cached = _reference_validation_cache.get(cache_key)
+        if (
+            cached
+            and cached.get("signature") == signature
+            and cached.get("max_duration_sec") == max_duration_sec
+        ):
+            return bool(cached["is_valid"]), str(cached["message"])
+
+    is_valid, message = utils.validate_reference_audio(path, max_duration_sec)
+    with _reference_validation_cache_lock:
+        _reference_validation_cache[cache_key] = {
+            "signature": signature,
+            "max_duration_sec": max_duration_sec,
+            "is_valid": bool(is_valid),
+            "message": str(message),
+        }
+    return is_valid, message
 
 
 def _delayed_browser_open(host: str, port: int):
@@ -701,7 +734,7 @@ async def custom_tts_endpoint(
                 detail=f"Reference audio file '{request.reference_audio_filename}' not found.",
             )
         max_dur = config_manager.get_int("audio_output.max_reference_duration_sec", 30)
-        is_valid, msg = utils.validate_reference_audio(potential_path, max_dur)
+        is_valid, msg = _validate_reference_audio_cached(potential_path, max_dur)
         if not is_valid:
             raise HTTPException(
                 status_code=400, detail=f"Invalid reference audio: {msg}"
@@ -722,10 +755,10 @@ async def custom_tts_endpoint(
     )
 
     if request.split_text and len(request.text) > (
-        request.chunk_size * 1.5 if request.chunk_size else 120 * 1.5
+        request.chunk_size * 1.5 if request.chunk_size else 220 * 1.5
     ):
         chunk_size_to_use = (
-            request.chunk_size if request.chunk_size is not None else 120
+            request.chunk_size if request.chunk_size is not None else 220
         )
         logger.info(f"Splitting text into chunks of size ~{chunk_size_to_use}.")
         text_chunks = utils.chunk_text_by_sentences(request.text, chunk_size_to_use)
@@ -741,6 +774,20 @@ async def custom_tts_endpoint(
             status_code=400, detail="Text processing resulted in no usable chunks."
         )
 
+    temperature_to_use = (
+        request.temperature if request.temperature is not None else get_gen_default_temperature()
+    )
+    exaggeration_to_use = (
+        request.exaggeration if request.exaggeration is not None else get_gen_default_exaggeration()
+    )
+    cfg_weight_to_use = (
+        request.cfg_weight if request.cfg_weight is not None else get_gen_default_cfg_weight()
+    )
+    seed_to_use = request.seed if request.seed is not None else get_gen_default_seed()
+    speed_factor_to_use = (
+        request.speed_factor if request.speed_factor is not None else get_gen_default_speed_factor()
+    )
+
     for i, chunk in enumerate(text_chunks):
         logger.info(f"Synthesizing chunk {i+1}/{len(text_chunks)}...")
         try:
@@ -751,24 +798,10 @@ async def custom_tts_endpoint(
                     if audio_prompt_path_for_engine
                     else None
                 ),
-                temperature=(
-                    request.temperature
-                    if request.temperature is not None
-                    else get_gen_default_temperature()
-                ),
-                exaggeration=(
-                    request.exaggeration
-                    if request.exaggeration is not None
-                    else get_gen_default_exaggeration()
-                ),
-                cfg_weight=(
-                    request.cfg_weight
-                    if request.cfg_weight is not None
-                    else get_gen_default_cfg_weight()
-                ),
-                seed=(
-                    request.seed if request.seed is not None else get_gen_default_seed()
-                ),
+                temperature=temperature_to_use,
+                exaggeration=exaggeration_to_use,
+                cfg_weight=cfg_weight_to_use,
+                seed=seed_to_use,
                 language=language_to_use,
             )
             perf_monitor.record(f"Engine synthesized chunk {i+1}")
@@ -790,11 +823,6 @@ async def custom_tts_endpoint(
             current_processed_audio_tensor = chunk_audio_tensor
             current_sr_for_processing = chunk_sr_from_engine
 
-            speed_factor_to_use = (
-                request.speed_factor
-                if request.speed_factor is not None
-                else get_gen_default_speed_factor()
-            )
             if speed_factor_to_use != 1.0:
                 current_processed_audio_tensor, _ = (
                     utils.apply_speed_factor(  # SR remains same

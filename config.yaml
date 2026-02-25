@@ -31,6 +31,10 @@ audio_output:
   format: wav
   sample_rate: 24000
   max_reference_duration_sec: 30
+audio_processing:
+  enable_silence_trimming: false
+  enable_internal_silence_fix: false
+  enable_unvoiced_removal: false
 wyoming:
   enabled: true
   host: 0.0.0.0
@@ -43,7 +47,7 @@ wyoming:
   pcm_width: 2
   channels: 1
   split_text: true
-  chunk_size: 120
+  chunk_size: 220
 wyoming_stt:
   host: 0.0.0.0
   port: 10300
@@ -53,7 +57,7 @@ ui_state:
   last_predefined_voice: Adrian.wav
   last_reference_file: none
   last_seed: 42
-  last_chunk_size: 120
+  last_chunk_size: 220
   last_split_text_enabled: true
   hide_chunk_warning: false
   hide_generation_warning: true

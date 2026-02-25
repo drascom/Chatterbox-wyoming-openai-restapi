@@ -70,7 +70,7 @@ class CustomTTSRequest(BaseModel):
         description="Whether to automatically split long text into chunks for processing.",
     )
     chunk_size: Optional[int] = Field(
-        120,  # Default target chunk size from config
+        220,  # Default larger chunk size reduces per-request synth calls
         ge=50,  # Minimum reasonable chunk size
         le=500,  # Maximum reasonable chunk size
         description="Approximate target character length for text chunks when splitting is enabled (50-500).",
