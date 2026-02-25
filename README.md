@@ -17,6 +17,11 @@ Adjust `config.yaml` for paths, defaults, and audio settings; it auto-creates on
 
 ## FastAPI / General Use
 ### Compose (recommended)
+Build images first (required after code changes):
+```
+docker compose build
+```
+
 Run TTS + STT only:
 ```
 docker compose up -d chatterbox-tts whisper-stt
@@ -25,6 +30,11 @@ docker compose up -d chatterbox-tts whisper-stt
 Run TTS + STT + Wyoming gateway:
 ```
 COMPOSE_PROFILES=wyoming docker compose up -d
+```
+
+You can also build and start in one step:
+```
+docker compose up -d --build
 ```
 
 The compose file uses Docker internal DNS between services:
