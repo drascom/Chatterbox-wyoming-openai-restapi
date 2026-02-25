@@ -58,16 +58,9 @@ from config import (
     get_audio_sample_rate,
     get_full_config_for_template,
     get_audio_output_format,
-    get_wyoming_enabled,
-    get_wyoming_host,
-    get_wyoming_port,
-    get_wyoming_stt_host,
-    get_wyoming_stt_port,
 )
 
 import engine  # TTS Engine interface
-import wyoming_tts_server  # Optional Wyoming TTS protocol server
-import wyoming_stt_server  # Optional Wyoming STT protocol server
 from models import (  # Pydantic models
     CustomTTSRequest,
     ErrorResponse,
@@ -200,26 +193,6 @@ async def lifespan(app: FastAPI):
             daemon=True,
         )
         browser_thread.start()
-
-        if get_wyoming_enabled():
-            tts_thread = wyoming_tts_server.start_wyoming_server_in_background()
-            if tts_thread:
-                logger.info(
-                    f"Wyoming TTS server started on {get_wyoming_host()}:{get_wyoming_port()}."
-                )
-            else:
-                logger.warning(
-                    "Wyoming TTS server was enabled but did not start. Check logs for details."
-                )
-            stt_thread = wyoming_stt_server.start_wyoming_stt_server_in_background()
-            if stt_thread:
-                logger.info(
-                    f"Wyoming STT server started on {get_wyoming_stt_host()}:{get_wyoming_stt_port()}."
-                )
-            else:
-                logger.warning(
-                    "Wyoming STT server was enabled but did not start. Check logs for details."
-                )
 
         logger.info("Application startup sequence complete.")
         startup_complete_event.set()

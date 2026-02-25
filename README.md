@@ -3,7 +3,7 @@
 FastAPI server for the Chatterbox TTS model. This fork keeps the upstream UX/features and adds:
 - Default config tuned for Turkish as well as English (language selector is for model input; the UI itself remains English).
 - OpenAI-compatible `/v1/audio/speech` endpoint.
-- Optional Wyoming protocol server for Home Assistant voice pipelines.
+- Split deployment with dedicated containers for TTS, STT, and optional Wyoming gateway.
 - Tested with Python 3.11 (recommended to avoid dependency pinning issues, e.g., protobuf).
 
 ## Install (bare metal)
@@ -16,30 +16,46 @@ uv run python server.py
 Adjust `config.yaml` for paths, defaults, and audio settings; it auto-creates on first run.
 
 ## FastAPI / General Use
-### Daily Use
-Use the published image for day-to-day usage:
+### Compose (recommended)
+Run TTS + STT only:
+```
+docker compose up -d chatterbox-tts whisper-stt
+```
+
+Run TTS + STT + Wyoming gateway:
+```
+COMPOSE_PROFILES=wyoming docker compose up -d
+```
+
+The compose file uses Docker internal DNS between services:
+- `chatterbox-tts` serves FastAPI/UI on container port `8000` and host port `${PORT:-8004}`.
+- `whisper-stt` serves internal STT HTTP API on container port `10400` (not published to host).
+- `wyoming-gateway` publishes Wyoming TTS/STT on host `${WYOMING_PORT:-10200}` and `${WHISPER_PORT:-10300}`.
+
+### Docker run (single role examples)
+TTS API/UI container:
 ```
 docker run --rm --gpus all \
-  -p 8004:8004 \
-  -p 10200:10200 \
-  -p 10300:10300 \
+  -p 8004:8000 \
+  -v $PWD/config.yaml:/app/config.yaml \
   -v $PWD/outputs:/app/outputs \
   -v $PWD/voices:/app/voices \
   -v $PWD/reference_audio:/app/reference_audio \
-  drascom07/chatterbox-wyoming-openai-restapi:latest
+  drascom07/chatterbox-wyoming-openai-restapi:latest \
+  python3 server.py
 ```
-When running via `docker run`, include `--gpus all` (and the same volumes/ports) so the container can see your NVIDIA driver; `docker compose up -d` already works because it defaults to the configured NVIDIA runtime even without that flag.
-Alternatively the bundled `docker-compose.yml` is tuned for the published image: run `docker compose pull` followed by `docker compose up -d`. The compose file maps the API port by default and you can override host-side ports with `PORT`, `WYOMING_PORT`, and `WHISPER_PORT`.
 
 ### Development
 When developing inside this repo, rebuild the image locally so you can test your changes:
 ```
 docker build -t chatterbox-wyoming-openai-restapi .
-docker run --rm --gpus all -p 8004:8004 \
+docker run --rm --gpus all -p 8004:8000 \
+  -v $PWD/config.yaml:/app/config.yaml \
   -v $PWD/outputs:/app/outputs \
   -v $PWD/voices:/app/voices \
   -v $PWD/reference_audio:/app/reference_audio \
-  chatterbox-wyoming-openai-restapi
+  chatterbox-wyoming-openai-restapi \
+  python3 server.py
 ```
 You can also run the compose file with a rebuild instead of `pull`:
 ```
@@ -52,22 +68,32 @@ docker system prune -a --volumes -f
 ```
 
 ## Home Assistant (Wyoming)
-- Enable Wyoming in `config.yaml` (`wyoming.enabled: true`). This turns on both services below.
+- Start the optional `wyoming-gateway` service with profile `wyoming`.
 - Publish ports when running in Docker (default host ports): TTS `10200`, STT `10300`.
 - In Home Assistant, add the “Wyoming Protocol” integration pointing to the host/port for each service.
 
 Wyoming TTS (Chatterbox):
 - Default port: `10200` (`WYOMING_PORT` overrides host side).
 - Provider name in HA: “Chatterbox TTS (Wyoming)”.
-- Voices are exposed by filename from `voices/` and `reference_audio/`.
-- All voices works with both Turkish and English
+- Gateway calls TTS upstream via `TTS_UPSTREAM_URL` (default: `http://chatterbox-tts:8000`).
 
 Wyoming STT (Whisper):
 - Default port: `10300` (`WHISPER_PORT` overrides host side).
-- STT host/port can be overridden in `config.yaml` via `wyoming_stt.host` and `wyoming_stt.port`.
-- Whisper model is loaded in `wyoming_stt_server.py` and currently set to the `selimc/whisper-large-v3-turbo-turkish` model.
+- Gateway calls STT upstream via `STT_UPSTREAM_URL` (default: `http://whisper-stt:10400`).
+- Whisper model is loaded in `stt_http_server.py` and currently set to `selimc/whisper-large-v3-turbo-turkish`.
+
+### Wyoming gateway environment variables
+- `TTS_UPSTREAM_URL` (default `http://chatterbox-tts:8000`)
+- `STT_UPSTREAM_URL` (default `http://whisper-stt:10400`)
+- `WYOMING_TTS_HOST` (default `0.0.0.0`)
+- `WYOMING_TTS_PORT` (default `10200`)
+- `WYOMING_STT_HOST` (default `0.0.0.0`)
+- `WYOMING_STT_PORT` (default `10300`)
+- `WYOMING_ENABLE_TTS` (default `true`)
+- `WYOMING_ENABLE_STT` (default `true`)
+- `WYOMING_ADVERTISE_NAME` (default `Chatterbox TTS (Wyoming)`)
 
 
 ## Notes vs upstream
 - Upstream: https://github.com/devnen/Chatterbox-TTS-Server
-- This fork: Turkish defaults, OpenAI speech endpoint, Wyoming protocol integration, minor config/UI tweaks. All other behavior matches upstream unless noted above.
+- This fork: Turkish defaults, OpenAI speech endpoint, split TTS/STT/Wyoming deployment, and minor config/UI tweaks.

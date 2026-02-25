@@ -1,49 +1,89 @@
-version: '3.8'
-
 services:
-  chatterbox-tts-server:
+  chatterbox-tts:
     image: drascom07/chatterbox-wyoming-openai-restapi:latest
     build:
       context: .
       dockerfile: Dockerfile
-
+    command: ["python3", "server.py"]
     ports:
-      - "${PORT:-8004}:8004"
-      - "${WYOMING_PORT:-10200}:10200"
-      - "${WHISPER_PORT:-10300}:10300"
+      - "${PORT:-8004}:8000"
     volumes:
-      # Mount local config file for persistence
       - ./config.yaml:/app/config.yaml
-      # Mount local directories for persistent app data
       - ./voices:/app/voices
       - ./reference_audio:/app/reference_audio
       - ./outputs:/app/outputs
       - ./logs:/app/logs
-
-    # --- GPU Access ---
-    # Modern method (Recommended for newer Docker/NVIDIA setups)
-    # devices:
-    #   - nvidia.com/gpu=all
-    # device_cgroup_rules:
-    #   - "c 195:* rmw" # Needed for some NVIDIA container toolkit versions
-    #   - "c 236:* rmw" # Needed for some NVIDIA container toolkit versions
-
-    # Legacy method (Alternative for older Docker/NVIDIA setups)
-    # If the 'devices' block above doesn't work, comment it out and uncomment
-    # the 'deploy' block below. Do not use both simultaneously.
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1 # Or specify specific GPUs e.g., "device=0,1"
+              count: 1
               capabilities: [gpu]
-    # --- End GPU Access ---
-
     restart: unless-stopped
     environment:
-      # Enable faster Hugging Face downloads inside the container
       - HF_HUB_ENABLE_HF_TRANSFER=1
-      # Make NVIDIA GPUs visible and specify capabilities for PyTorch
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    networks:
+      - speech-net
+
+  whisper-stt:
+    image: drascom07/chatterbox-wyoming-openai-restapi:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python3", "stt_http_server.py"]
+    expose:
+      - "10400"
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    environment:
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    networks:
+      - speech-net
+
+  wyoming-gateway:
+    image: drascom07/chatterbox-wyoming-openai-restapi:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python3", "wyoming_gateway.py"]
+    profiles: ["wyoming"]
+    ports:
+      - "${WYOMING_PORT:-10200}:10200"
+      - "${WHISPER_PORT:-10300}:10300"
+    volumes:
+      - ./voices:/app/voices:ro
+      - ./reference_audio:/app/reference_audio:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    environment:
+      - TTS_UPSTREAM_URL=${TTS_UPSTREAM_URL:-http://chatterbox-tts:8000}
+      - STT_UPSTREAM_URL=${STT_UPSTREAM_URL:-http://whisper-stt:10400}
+      - WYOMING_TTS_HOST=${WYOMING_TTS_HOST:-0.0.0.0}
+      - WYOMING_TTS_PORT=${WYOMING_TTS_PORT:-10200}
+      - WYOMING_STT_HOST=${WYOMING_STT_HOST:-0.0.0.0}
+      - WYOMING_STT_PORT=${WYOMING_STT_PORT:-10300}
+      - WYOMING_ENABLE_TTS=${WYOMING_ENABLE_TTS:-true}
+      - WYOMING_ENABLE_STT=${WYOMING_ENABLE_STT:-true}
+      - WYOMING_ADVERTISE_NAME=${WYOMING_ADVERTISE_NAME:-Chatterbox TTS (Wyoming)}
+    depends_on:
+      - chatterbox-tts
+      - whisper-stt
+    networks:
+      - speech-net
+
+networks:
+  speech-net:
+    driver: bridge

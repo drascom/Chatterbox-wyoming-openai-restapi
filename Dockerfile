@@ -30,8 +30,12 @@ COPY . .
 # Create required directories for the application
 RUN mkdir -p model_cache reference_audio outputs voices logs \
 
-# Expose the port the application will run on (default from config, e.g., 8004)
-EXPOSE 8004
+# Expose service ports used by split roles:
+# - TTS API/UI: 8000
+# - Wyoming TTS: 10200
+# - Wyoming STT: 10300
+# - Internal STT HTTP API: 10400
+EXPOSE 8000 10200 10300 10400
 
 # Command to run the application
 CMD ["python3", "server.py"]
