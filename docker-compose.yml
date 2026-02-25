@@ -34,6 +34,8 @@ services:
       context: .
       dockerfile: Dockerfile
     command: ["python3", "stt_http_server.py"]
+    ports:
+      - "${STT_API_PORT:-10400}:10400"
     expose:
       - "10400"
     volumes:

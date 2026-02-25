@@ -1,4 +1,5 @@
 import asyncio
+import io
 import logging
 import warnings
 from contextlib import asynccontextmanager
@@ -6,8 +7,8 @@ from typing import Optional
 
 import numpy as np
 import torch
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse, PlainTextResponse
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 import uvicorn
 
@@ -81,6 +82,24 @@ def _pcm_to_mono_float32(raw: bytes, width: int, channels: int) -> np.ndarray:
         audio = audio[: frame_count * channels].reshape(frame_count, channels).mean(axis=1)
 
     return audio
+
+
+def _decode_uploaded_audio(raw: bytes, sample_rate: int = 16000) -> np.ndarray:
+    """Decode common audio formats (wav/mp3/ogg/opus/flac/...) to mono float32."""
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+    try:
+        import librosa
+
+        audio, _ = librosa.load(io.BytesIO(raw), sr=sample_rate, mono=True)
+        audio_np = np.asarray(audio, dtype=np.float32)
+        if audio_np.size == 0:
+            raise HTTPException(status_code=400, detail="Decoded audio is empty")
+        return audio_np
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to decode uploaded audio: {exc}") from exc
 
 
 async def transcribe_audio(audio: np.ndarray, language: Optional[str]) -> str:
@@ -172,6 +191,35 @@ async def transcribe_endpoint(
             "language": lang,
         }
     )
+
+
+@app.post("/stt")
+async def public_stt_endpoint(
+    file: UploadFile = File(...),
+    language: Optional[str] = Form(None),
+) -> JSONResponse:
+    raw = await file.read()
+    audio_mono = _decode_uploaded_audio(raw, sample_rate=16000)
+    lang = language or DEFAULT_LANGUAGE
+    text = await transcribe_audio(audio_mono, lang)
+    return JSONResponse({"text": text, "model": MODEL_ID, "language": lang})
+
+
+@app.post("/v1/audio/transcriptions")
+async def openai_transcriptions_endpoint(
+    file: UploadFile = File(...),
+    model: str = Form(MODEL_ID),
+    language: Optional[str] = Form(None),
+    response_format: str = Form("json"),
+) -> JSONResponse | PlainTextResponse:
+    raw = await file.read()
+    audio_mono = _decode_uploaded_audio(raw, sample_rate=16000)
+    lang = language or DEFAULT_LANGUAGE
+    text = await transcribe_audio(audio_mono, lang)
+
+    if response_format == "text":
+        return PlainTextResponse(text)
+    return JSONResponse({"text": text, "model": model or MODEL_ID, "language": lang})
 
 
 if __name__ == "__main__":

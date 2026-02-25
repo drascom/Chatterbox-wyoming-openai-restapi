@@ -29,7 +29,7 @@ COMPOSE_PROFILES=wyoming docker compose up -d
 
 The compose file uses Docker internal DNS between services:
 - `chatterbox-tts` serves FastAPI/UI on container port `8000` and host port `${PORT:-8004}`.
-- `whisper-stt` serves internal STT HTTP API on container port `10400` (not published to host).
+- `whisper-stt` serves STT HTTP API on container port `10400` and host port `${STT_API_PORT:-10400}`.
 - `wyoming-gateway` publishes Wyoming TTS/STT on host `${WYOMING_PORT:-10200}` and `${WHISPER_PORT:-10300}`.
 
 ### Docker run (single role examples)
@@ -81,6 +81,35 @@ Wyoming STT (Whisper):
 - Default port: `10300` (`WHISPER_PORT` overrides host side).
 - Gateway calls STT upstream via `STT_UPSTREAM_URL` (default: `http://whisper-stt:10400`).
 - Whisper model is loaded in `stt_http_server.py` and currently set to `selimc/whisper-large-v3-turbo-turkish`.
+
+## External Whisper STT API
+Whisper STT container also exposes public HTTP endpoints for external callers:
+
+- `POST /stt` (multipart form-data)
+  - fields:
+    - `file` (audio file: wav/mp3/ogg/flac/opus supported through decoder stack)
+    - `language` (optional, default `tr`)
+  - response:
+    - `{"text":"...","model":"selimc/whisper-large-v3-turbo-turkish","language":"tr"}`
+
+- `POST /v1/audio/transcriptions` (OpenAI-style multipart form-data)
+  - fields:
+    - `file` (required)
+    - `model` (optional, defaults to server model id)
+    - `language` (optional)
+    - `response_format` (`json` or `text`)
+  - response:
+    - `json`: `{"text":"...","model":"...","language":"..."}`
+    - `text`: plain transcript text
+
+Example:
+```
+curl -sS -X POST "http://localhost:10400/v1/audio/transcriptions" \
+  -F "file=@sample.wav" \
+  -F "model=whisper-1" \
+  -F "language=tr" \
+  -F "response_format=json"
+```
 
 ### Wyoming gateway environment variables
 - `TTS_UPSTREAM_URL` (default `http://chatterbox-tts:8000`)
