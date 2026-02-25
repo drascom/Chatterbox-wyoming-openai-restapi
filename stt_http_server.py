@@ -205,13 +205,13 @@ async def public_stt_endpoint(
     return JSONResponse({"text": text, "model": MODEL_ID, "language": lang})
 
 
-@app.post("/v1/audio/transcriptions")
+@app.post("/v1/audio/transcriptions", response_model=None)
 async def openai_transcriptions_endpoint(
     file: UploadFile = File(...),
     model: str = Form(MODEL_ID),
     language: Optional[str] = Form(None),
     response_format: str = Form("json"),
-) -> JSONResponse | PlainTextResponse:
+):
     raw = await file.read()
     audio_mono = _decode_uploaded_audio(raw, sample_rate=16000)
     lang = language or DEFAULT_LANGUAGE
