@@ -54,6 +54,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "tts_engine": {
         "device": "auto",  # TTS processing device: 'auto', 'cuda', or 'cpu'.
         # 'auto' will attempt to use 'cuda' if available, otherwise 'cpu'.
+        "allow_tf32": True,  # Enables TF32 matmul on NVIDIA Ampere+ for faster inference.
+        "t3_generate_backend": "auto",  # 'auto' picks cudagraphs-manual on CUDA if supported.
         "predefined_voices_path": str(
             DEFAULT_VOICES_PATH
         ),  # Directory for predefined voice files.
@@ -79,6 +81,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "seed": 0,  # Random seed for generation. 0 often means random or engine default.
         "speed_factor": 1.0,  # Controls the speed of the generated speech.
         "language": "en",  # Default language for TTS.
+        # Optional fast-path knobs used only when the installed chatterbox package supports them.
+        "max_new_tokens": 1000,
+        "max_cache_len": 1500,
+        "repetition_penalty": 1.2,
+        "min_p": 0.05,
+        "top_p": 1.0,
     },
     "audio_output": {  # Settings related to the format of generated audio.
         "format": "wav",  # Output audio format (e.g., 'wav', 'mp3').

@@ -6,7 +6,9 @@ import warnings
 import random
 import numpy as np
 import torch
-from typing import Optional, Tuple
+import inspect
+from threading import Lock
+from typing import Optional, Tuple, Dict, Set
 from pathlib import Path
 
 from chatterbox.tts import ChatterboxTTS  # Main TTS engine class
@@ -36,6 +38,9 @@ chatterbox_multilingual_model: Optional[ChatterboxMultilingualTTS] = None
 MULTILINGUAL_MODEL_LOADED: bool = False
 MIN_SAFE_TEMPERATURE = 0.1
 MODEL_STATUS: dict = {"state": "idle", "detail": "Model load not started."}
+_GENERATE_PARAMS_BY_MODEL: Dict[int, Set[str]] = {}
+_CONDS_CACHE_LOCK = Lock()
+_LAST_CONDS_CACHE_KEY: Optional[Tuple[int, str, float]] = None
 
 
 def set_seed(seed_value: int):
@@ -64,6 +69,44 @@ def _clamp_temperature(value: Optional[float]) -> float:
         )
         return MIN_SAFE_TEMPERATURE
     return value
+
+
+def _configure_cuda_runtime(device: str) -> None:
+    """Apply CUDA runtime knobs that can reduce latency on supported GPUs."""
+    if device != "cuda":
+        return
+    try:
+        if hasattr(torch.backends, "cudnn"):
+            torch.backends.cudnn.benchmark = True
+        if hasattr(torch.backends, "cuda") and hasattr(torch.backends.cuda, "matmul"):
+            allow_tf32 = config_manager.get_bool("tts_engine.allow_tf32", True)
+            torch.backends.cuda.matmul.allow_tf32 = allow_tf32
+            logger.info("CUDA matmul TF32 set to %s", allow_tf32)
+    except Exception as cuda_cfg_exc:
+        logger.warning("Failed to apply CUDA runtime tuning: %s", cuda_cfg_exc)
+
+
+def _get_generate_params(model: object) -> Set[str]:
+    """Return cached generate() parameter names for the selected model object."""
+    model_key = id(model)
+    if model_key in _GENERATE_PARAMS_BY_MODEL:
+        return _GENERATE_PARAMS_BY_MODEL[model_key]
+
+    try:
+        params = set(inspect.signature(model.generate).parameters.keys())
+    except Exception:
+        params = set()
+    _GENERATE_PARAMS_BY_MODEL[model_key] = params
+    return params
+
+
+def _resolve_t3_backend() -> Optional[str]:
+    backend = config_manager.get_string("tts_engine.t3_generate_backend", "auto").strip().lower()
+    if backend in ("", "none", "off", "disabled", "false"):
+        return None
+    if backend == "auto":
+        return "cudagraphs-manual" if model_device == "cuda" else None
+    return backend
 
 
 def load_model() -> bool:
@@ -106,6 +149,7 @@ def load_model() -> bool:
 
         model_device = resolved_device_str
         logger.info(f"Attempting to load TTS model on device: {model_device}")
+        _configure_cuda_runtime(model_device)
 
         # Get configured model_repo_id for logging and context,
         # though from_pretrained might use its own internal default if not overridden.
@@ -240,7 +284,7 @@ def synthesize(
         A tuple containing the audio waveform (torch.Tensor) and the sample rate (int),
         or (None, None) if synthesis fails.
     """
-    global chatterbox_model
+    global chatterbox_model, _LAST_CONDS_CACHE_KEY
 
     if not MODEL_LOADED or chatterbox_model is None:
         logger.error("TTS model is not loaded. Cannot synthesize audio.")
@@ -280,7 +324,6 @@ def synthesize(
 
         generate_kwargs = dict(
             text=text,
-            audio_prompt_path=audio_prompt_path,
             temperature=temperature_to_use,
             exaggeration=exaggeration,
             cfg_weight=cfg_weight,
@@ -288,8 +331,44 @@ def synthesize(
         if use_multilingual and language:
             generate_kwargs["language_id"] = language
 
+        conds_cache_key: Optional[Tuple[int, str, float]] = None
+        use_cached_conds = False
+        if audio_prompt_path and hasattr(selected_model, "prepare_conditionals"):
+            resolved_prompt = str(Path(audio_prompt_path).resolve())
+            conds_cache_key = (id(selected_model), resolved_prompt, round(float(exaggeration), 6))
+            with _CONDS_CACHE_LOCK:
+                use_cached_conds = _LAST_CONDS_CACHE_KEY == conds_cache_key
+            if not use_cached_conds:
+                generate_kwargs["audio_prompt_path"] = audio_prompt_path
+        elif audio_prompt_path:
+            generate_kwargs["audio_prompt_path"] = audio_prompt_path
+
+        supported_params = _get_generate_params(selected_model)
+        if "max_new_tokens" in supported_params:
+            generate_kwargs["max_new_tokens"] = config_manager.get_int("generation_defaults.max_new_tokens", 1000)
+        if "max_cache_len" in supported_params:
+            generate_kwargs["max_cache_len"] = config_manager.get_int("generation_defaults.max_cache_len", 1500)
+        if "repetition_penalty" in supported_params:
+            generate_kwargs["repetition_penalty"] = config_manager.get_float(
+                "generation_defaults.repetition_penalty", 1.2
+            )
+        if "min_p" in supported_params:
+            generate_kwargs["min_p"] = config_manager.get_float("generation_defaults.min_p", 0.05)
+        if "top_p" in supported_params:
+            generate_kwargs["top_p"] = config_manager.get_float("generation_defaults.top_p", 1.0)
+
+        t3_backend = _resolve_t3_backend()
+        if t3_backend:
+            if "generate_token_backend" in supported_params:
+                generate_kwargs["generate_token_backend"] = t3_backend
+            elif "t3_params" in supported_params:
+                generate_kwargs["t3_params"] = {"generate_token_backend": t3_backend}
+
         # Call the selected model's generate method
         wav_tensor = selected_model.generate(**generate_kwargs)
+        if conds_cache_key and not use_cached_conds:
+            with _CONDS_CACHE_LOCK:
+                _LAST_CONDS_CACHE_KEY = conds_cache_key
 
         # The ChatterboxTTS.generate method already returns a CPU tensor.
         return wav_tensor, chatterbox_model.sr
