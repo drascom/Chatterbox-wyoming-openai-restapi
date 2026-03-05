@@ -92,6 +92,58 @@ Wyoming STT (Whisper):
 - Gateway calls STT upstream via `STT_UPSTREAM_URL` (default: `http://whisper-stt:10400`).
 - Whisper model is loaded in `stt_http_server.py` and currently set to `selimc/whisper-large-v3-turbo-turkish`.
 
+## Quick curl tests (deployed server)
+Set your base URL (example uses your deployment):
+```
+BASE_URL="https://chatter.drascom.uk"
+```
+
+Basic checks:
+```
+curl -i "$BASE_URL/"
+curl -i "$BASE_URL/health"
+curl -sS "$BASE_URL/api/model-status"
+curl -i "$BASE_URL/docs"
+curl -i "$BASE_URL/openapi.json"
+```
+
+Simple TTS POST (`/tts`, JSON):
+```
+curl -sS -X POST "$BASE_URL/tts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Merhaba dunya, bu bir testtir.",
+    "voice_mode": "predefined",
+    "predefined_voice_id": "Abigail.wav",
+    "output_format": "wav",
+    "language": "tr"
+  }' \
+  -o tts_output.wav
+```
+
+OpenAI-compatible TTS POST (`/v1/audio/speech`, JSON):
+```
+curl -sS -X POST "$BASE_URL/v1/audio/speech" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "chatterbox",
+    "input": "Hello from Chatterbox API",
+    "voice": "Abigail.wav",
+    "response_format": "wav"
+  }' \
+  -o speech_output.wav
+```
+
+STT POST (`/v1/audio/transcriptions`, multipart, STT service URL):
+```
+STT_BASE_URL="http://localhost:8000"
+curl -sS -X POST "$STT_BASE_URL/v1/audio/transcriptions" \
+  -F "file=@sample.wav" \
+  -F "model=whisper-1" \
+  -F "language=tr" \
+  -F "response_format=json"
+```
+
 ## External Whisper STT API
 Whisper STT container also exposes public HTTP endpoints for external callers:
 

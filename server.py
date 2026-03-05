@@ -471,6 +471,21 @@ async def get_model_status_api():
     return engine.get_model_status()
 
 
+@app.get("/health", tags=["System"])
+async def health_check():
+    """Health endpoint exposing server liveness and TTS model readiness."""
+    model_status = engine.get_model_status()
+    model_state = model_status.get("state", "unknown")
+    model_ready = model_state == "ready"
+    response_data = {
+        "status": "ok" if model_ready else "loading",
+        "server": "ok",
+        "model_loaded": model_ready,
+        "model_status": model_status,
+    }
+    return JSONResponse(content=response_data, status_code=200 if model_ready else 503)
+
+
 # --- File Upload Endpoints ---
 @app.post("/upload_reference", tags=["File Management"])
 async def upload_reference_audio_endpoint(files: List[UploadFile] = File(...)):
