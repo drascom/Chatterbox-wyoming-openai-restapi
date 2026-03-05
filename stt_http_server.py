@@ -1,6 +1,7 @@
 import asyncio
 import io
 import logging
+import subprocess
 import warnings
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -84,8 +85,47 @@ def _pcm_to_mono_float32(raw: bytes, width: int, channels: int) -> np.ndarray:
     return audio
 
 
+def _decode_with_ffmpeg(raw: bytes, sample_rate: int = 16000) -> np.ndarray:
+    """Decode arbitrary media bytes via ffmpeg to mono PCM16."""
+    ffmpeg_cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        "pipe:0",
+        "-f",
+        "s16le",
+        "-acodec",
+        "pcm_s16le",
+        "-ac",
+        "1",
+        "-ar",
+        str(sample_rate),
+        "pipe:1",
+    ]
+    try:
+        proc = subprocess.run(
+            ffmpeg_cmd,
+            input=raw,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail="ffmpeg is not installed on server") from exc
+    except subprocess.CalledProcessError as exc:
+        err = exc.stderr.decode("utf-8", errors="ignore").strip() or "ffmpeg decode failed"
+        raise HTTPException(status_code=400, detail=f"Failed to decode audio with ffmpeg: {err}") from exc
+
+    pcm = np.frombuffer(proc.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+    if pcm.size == 0:
+        raise HTTPException(status_code=400, detail="Decoded audio is empty")
+    return pcm
+
+
 def _decode_uploaded_audio(raw: bytes, sample_rate: int = 16000) -> np.ndarray:
-    """Decode common audio formats (wav/mp3/ogg/opus/flac/...) to mono float32."""
+    """Decode common formats; explicitly supports audio/webm (Opus) via ffmpeg fallback."""
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio file")
     try:
@@ -98,8 +138,10 @@ def _decode_uploaded_audio(raw: bytes, sample_rate: int = 16000) -> np.ndarray:
         return audio_np
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to decode uploaded audio: {exc}") from exc
+    except Exception:
+        # Some containers/codecs (notably audio/webm + Opus) can fail in librosa.
+        # ffmpeg handles these reliably when available in the runtime image.
+        return _decode_with_ffmpeg(raw, sample_rate=sample_rate)
 
 
 async def transcribe_audio(audio: np.ndarray, language: Optional[str]) -> str:

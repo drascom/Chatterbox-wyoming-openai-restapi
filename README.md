@@ -149,7 +149,7 @@ Whisper STT container also exposes public HTTP endpoints for external callers:
 
 - `POST /stt` (multipart form-data)
   - fields:
-    - `file` (audio file: wav/mp3/ogg/flac/opus supported through decoder stack)
+    - `file` (audio file: wav/mp3/ogg/flac/opus and audio/webm+opus supported)
     - `language` (optional, default `tr`)
   - response:
     - `{"text":"...","model":"selimc/whisper-large-v3-turbo-turkish","language":"tr"}`
