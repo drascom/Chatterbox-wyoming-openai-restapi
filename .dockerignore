@@ -1,0 +1,33 @@
+# VCS
+.git
+.gitignore
+
+# Python/cache
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Local runtime data (not needed in image)
+model_cache/
+hf_cache/
+outputs/
+logs/
+
+# Large local assets not needed for build
+voices/
+reference_audio/
+
+# Env/files
+.env
+.env.*
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Docs/notes not required at runtime
+documentation.md
