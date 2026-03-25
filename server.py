@@ -74,7 +74,7 @@ class OpenAISpeechRequest(BaseModel):
     model: str
     input_: str = Field(..., alias="input")
     voice: str
-    response_format: Literal["wav", "opus", "mp3"] = "wav"  # Add "mp3"
+    response_format: Literal["wav", "opus", "mp3", "pcm"] = "wav"
     speed: float = 1.0
     seed: Optional[int] = None
 
@@ -1046,7 +1046,7 @@ async def openai_speech_endpoint(request: OpenAISpeechRequest):
             raise HTTPException(status_code=500, detail="Failed to encode audio.")
 
         # Determine the media type
-        media_type = f"audio/{request.response_format}"
+        media_type = "audio/pcm" if request.response_format == "pcm" else f"audio/{request.response_format}"
 
         # Return the streaming response
         return StreamingResponse(io.BytesIO(encoded_audio), media_type=media_type)

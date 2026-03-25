@@ -61,7 +61,7 @@ class CustomTTSRequest(BaseModel):
         description="Filename of a user-uploaded reference audio for voice cloning. Required if voice_mode is 'clone'.",
     )
 
-    output_format: Optional[Literal["wav", "opus"]] = Field(
+    output_format: Optional[Literal["wav", "opus", "pcm"]] = Field(
         "wav", description="Desired audio output format."  # Default output format
     )
 
