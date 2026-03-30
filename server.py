@@ -74,8 +74,16 @@ class OpenAISpeechRequest(BaseModel):
     model: Optional[str] = "chatterbox"
     input_: str = Field(..., alias="input")
     voice: Optional[str] = None
+    voice_mode: Optional[Literal["predefined", "clone"]] = None
     predefined_voice_id: Optional[str] = None
+    reference_audio_filename: Optional[str] = None
     language: Optional[str] = None
+    temperature: Optional[float] = Field(None, ge=0.1, le=1.5)
+    exaggeration: Optional[float] = Field(None, ge=0.25, le=2.0)
+    cfg_weight: Optional[float] = Field(None, ge=0.2, le=1.0)
+    speed_factor: Optional[float] = Field(None, ge=0.25, le=4.0)
+    split_text: Optional[bool] = True
+    chunk_size: Optional[int] = Field(220, ge=50, le=500)
     response_format: Literal["wav", "opus", "mp3", "pcm"] = "wav"
     speed: float = 1.0
     seed: Optional[int] = None
@@ -1035,79 +1043,33 @@ async def custom_tts_endpoint(
 
 @app.post("/v1/audio/speech", tags=["OpenAI Compatible"])
 async def openai_speech_endpoint(request: OpenAISpeechRequest):
-    # Support OpenAI-style `voice` while also accepting the native predefined voice name.
-    predefined_voices_path = get_predefined_voices_path(ensure_absolute=True)
-    reference_audio_path = get_reference_audio_path(ensure_absolute=True)
-    selected_voice = request.predefined_voice_id or request.voice
-    if not selected_voice:
-        raise HTTPException(
-            status_code=400,
-            detail="Either 'voice' or 'predefined_voice_id' is required.",
-        )
+    inferred_voice_mode = request.voice_mode
+    if inferred_voice_mode is None:
+        if request.reference_audio_filename:
+            inferred_voice_mode = "clone"
+        else:
+            inferred_voice_mode = "predefined"
 
-    voice_path_predefined = predefined_voices_path / selected_voice
-    voice_path_reference = reference_audio_path / selected_voice
-
-    if voice_path_predefined.is_file():
-        audio_prompt_path = voice_path_predefined
-    elif voice_path_reference.is_file():
-        audio_prompt_path = voice_path_reference
-    else:
-        raise HTTPException(status_code=404, detail=f"Voice file '{selected_voice}' not found.")
-
-    # Check if the TTS model is loaded
-    if not engine.MODEL_LOADED:
-        raise HTTPException(status_code=503, detail="TTS engine model is not currently loaded or available.")
-
-    try:
-        # Use the provided seed or the default
-        seed_to_use = request.seed if request.seed is not None else get_gen_default_seed()
-
-        # Synthesize the audio
-        audio_tensor, sr = engine.synthesize(
-            text=request.input_,
-            audio_prompt_path=str(audio_prompt_path),
-            temperature=get_gen_default_temperature(),
-            exaggeration=get_gen_default_exaggeration(),
-            cfg_weight=get_gen_default_cfg_weight(),
-            seed=seed_to_use,
-            language=request.language,
-        )
-
-        if audio_tensor is None or sr is None:
-            raise HTTPException(status_code=500, detail="TTS engine failed to synthesize audio.")
-
-        # Apply speed factor if not 1.0
-        if request.speed != 1.0:
-            audio_tensor, _ = utils.apply_speed_factor(audio_tensor, sr, request.speed)
-
-        # Convert tensor to numpy array
-        audio_np = audio_tensor.cpu().numpy()
-
-        # Ensure it's 1D
-        if audio_np.ndim == 2:
-            audio_np = audio_np.squeeze()
-
-        # Encode the audio to the requested format
-        encoded_audio = utils.encode_audio(
-            audio_array=audio_np,
-            sample_rate=sr,
-            output_format=request.response_format,
-            target_sample_rate=get_audio_sample_rate(),
-        )
-
-        if encoded_audio is None:
-            raise HTTPException(status_code=500, detail="Failed to encode audio.")
-
-        # Determine the media type
-        media_type = "audio/pcm" if request.response_format == "pcm" else f"audio/{request.response_format}"
-
-        # Return the streaming response
-        return StreamingResponse(io.BytesIO(encoded_audio), media_type=media_type)
-
-    except Exception as e:
-        logger.error(f"Error in openai_speech_endpoint: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    mapped_request = CustomTTSRequest(
+        text=request.input_,
+        voice_mode=inferred_voice_mode,
+        predefined_voice_id=request.predefined_voice_id or (
+            request.voice if inferred_voice_mode == "predefined" else None
+        ),
+        reference_audio_filename=request.reference_audio_filename or (
+            request.voice if inferred_voice_mode == "clone" else None
+        ),
+        output_format=request.response_format,
+        split_text=request.split_text,
+        chunk_size=request.chunk_size,
+        temperature=request.temperature,
+        exaggeration=request.exaggeration,
+        cfg_weight=request.cfg_weight,
+        seed=request.seed,
+        speed_factor=request.speed_factor if request.speed_factor is not None else request.speed,
+        language=request.language,
+    )
+    return await custom_tts_endpoint(mapped_request, BackgroundTasks())
 
 
 # --- Main Execution ---
