@@ -453,9 +453,10 @@ async def get_reference_files_api():
 @app.get(
     "/get_predefined_voices", response_model=List[Dict[str, str]], tags=["UI Helpers"]
 )
+@app.get("/voices", response_model=List[Dict[str, str]], tags=["UI Helpers"])
 async def get_predefined_voices_api():
     """Returns a list of predefined voices with display names and filenames."""
-    logger.debug("Request for /get_predefined_voices.")
+    logger.debug("Request for predefined voices list.")
     try:
         return utils.get_predefined_voices()
     except Exception as e:
