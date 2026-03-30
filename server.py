@@ -105,6 +105,8 @@ logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("watchfiles").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
+access_logger = logging.getLogger("tts.access")
+access_logger.setLevel(logging.INFO)
 warnings.filterwarnings(
     "ignore",
     message=".*pkg_resources is deprecated as an API.*",
@@ -259,6 +261,35 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_incoming_requests(request: Request, call_next):
+    start = time.perf_counter()
+    client_host = request.client.host if request.client else "unknown"
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = (time.perf_counter() - start) * 1000
+        access_logger.exception(
+            '%s %s from %s -> 500 in %.1fms',
+            request.method,
+            request.url.path,
+            client_host,
+            duration_ms,
+        )
+        raise
+
+    duration_ms = (time.perf_counter() - start) * 1000
+    access_logger.info(
+        '%s %s from %s -> %s in %.1fms',
+        request.method,
+        request.url.path,
+        client_host,
+        response.status_code,
+        duration_ms,
+    )
+    return response
 
 # --- Static Files and HTML Templates ---
 ui_static_path = Path(__file__).parent / "ui"
