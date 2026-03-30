@@ -267,12 +267,22 @@ app.add_middleware(
 async def log_incoming_requests(request: Request, call_next):
     start = time.perf_counter()
     client_host = request.client.host if request.client else "unknown"
+    content_type = request.headers.get("content-type", "-")
+    content_length = request.headers.get("content-length", "-")
+    access_logger.info(
+        "START %s %s from %s content-type=%s content-length=%s",
+        request.method,
+        request.url.path,
+        client_host,
+        content_type,
+        content_length,
+    )
     try:
         response = await call_next(request)
     except Exception:
         duration_ms = (time.perf_counter() - start) * 1000
         access_logger.exception(
-            '%s %s from %s -> 500 in %.1fms',
+            'DONE %s %s from %s -> 500 in %.1fms',
             request.method,
             request.url.path,
             client_host,
@@ -282,7 +292,7 @@ async def log_incoming_requests(request: Request, call_next):
 
     duration_ms = (time.perf_counter() - start) * 1000
     access_logger.info(
-        '%s %s from %s -> %s in %.1fms',
+        'DONE %s %s from %s -> %s in %.1fms',
         request.method,
         request.url.path,
         client_host,
