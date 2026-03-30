@@ -454,6 +454,7 @@ async def get_reference_files_api():
     "/get_predefined_voices", response_model=List[Dict[str, str]], tags=["UI Helpers"]
 )
 @app.get("/voices", response_model=List[Dict[str, str]], tags=["UI Helpers"])
+@app.get("/v1/voices", response_model=List[Dict[str, str]], tags=["UI Helpers"])
 async def get_predefined_voices_api():
     """Returns a list of predefined voices with display names and filenames."""
     logger.debug("Request for predefined voices list.")
@@ -473,6 +474,7 @@ async def get_model_status_api():
 
 
 @app.get("/health", tags=["System"])
+@app.get("/v1/health", tags=["System"])
 async def health_check():
     """Health endpoint exposing server liveness and TTS model readiness."""
     model_status = engine.get_model_status()
