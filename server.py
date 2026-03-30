@@ -71,7 +71,7 @@ import utils  # Utility functions
 from pydantic import BaseModel, Field
 
 class OpenAISpeechRequest(BaseModel):
-    model: str
+    model: Optional[str] = "chatterbox"
     input_: str = Field(..., alias="input")
     voice: str
     response_format: Literal["wav", "opus", "mp3", "pcm"] = "wav"
