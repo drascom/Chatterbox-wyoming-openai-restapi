@@ -73,7 +73,9 @@ from pydantic import BaseModel, Field
 class OpenAISpeechRequest(BaseModel):
     model: Optional[str] = "chatterbox"
     input_: str = Field(..., alias="input")
-    voice: str
+    voice: Optional[str] = None
+    predefined_voice_id: Optional[str] = None
+    language: Optional[str] = None
     response_format: Literal["wav", "opus", "mp3", "pcm"] = "wav"
     speed: float = 1.0
     seed: Optional[int] = None
@@ -992,18 +994,25 @@ async def custom_tts_endpoint(
 
 @app.post("/v1/audio/speech", tags=["OpenAI Compatible"])
 async def openai_speech_endpoint(request: OpenAISpeechRequest):
-    # Determine the audio prompt path based on the voice parameter
+    # Support OpenAI-style `voice` while also accepting the native predefined voice name.
     predefined_voices_path = get_predefined_voices_path(ensure_absolute=True)
     reference_audio_path = get_reference_audio_path(ensure_absolute=True)
-    voice_path_predefined = predefined_voices_path / request.voice
-    voice_path_reference = reference_audio_path / request.voice
+    selected_voice = request.predefined_voice_id or request.voice
+    if not selected_voice:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'voice' or 'predefined_voice_id' is required.",
+        )
+
+    voice_path_predefined = predefined_voices_path / selected_voice
+    voice_path_reference = reference_audio_path / selected_voice
 
     if voice_path_predefined.is_file():
         audio_prompt_path = voice_path_predefined
     elif voice_path_reference.is_file():
         audio_prompt_path = voice_path_reference
     else:
-        raise HTTPException(status_code=404, detail=f"Voice file '{request.voice}' not found.")
+        raise HTTPException(status_code=404, detail=f"Voice file '{selected_voice}' not found.")
 
     # Check if the TTS model is loaded
     if not engine.MODEL_LOADED:
@@ -1021,6 +1030,7 @@ async def openai_speech_endpoint(request: OpenAISpeechRequest):
             exaggeration=get_gen_default_exaggeration(),
             cfg_weight=get_gen_default_cfg_weight(),
             seed=seed_to_use,
+            language=request.language,
         )
 
         if audio_tensor is None or sr is None:
