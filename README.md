@@ -39,7 +39,7 @@ docker compose up -d --build
 
 The compose file uses Docker internal DNS between services:
 - `chatterbox-tts` serves FastAPI/UI on container port `8000` and host port `${PORT:-8001}`.
-- `whisper-stt` serves STT HTTP API on container port `10400` and host port `${STT_API_PORT:-8000}`.
+- `whisper-stt` serves STT HTTP API on container port `8001` and host port `${STT_API_PORT:-8000}`.
 - `wyoming-gateway` publishes Wyoming TTS/STT on host `${WYOMING_PORT:-10200}` and `${WHISPER_PORT:-10300}`.
 
 ### Docker run (single role examples)
@@ -157,12 +157,36 @@ Whisper STT container also exposes public HTTP endpoints for external callers:
 - `POST /v1/audio/transcriptions` (OpenAI-style multipart form-data)
   - fields:
     - `file` (required)
-    - `model` (optional, defaults to server model id)
+    - `model` (required by OpenAI-style clients; accepts `whisper-1` or the server model id)
     - `language` (optional)
-    - `response_format` (`json` or `text`)
+    - `prompt` (optional, accepted for compatibility)
+    - `temperature` (optional, accepted for compatibility)
+    - `response_format` (`json`, `text`, `verbose_json`, `srt`, or `vtt`)
+    - `timestamp_granularities[]` (optional, accepted for compatibility)
+    - `stream` (optional, accepted but currently returns a normal non-streaming response)
   - response:
     - `json`: `{"text":"...","model":"...","language":"..."}`
     - `text`: plain transcript text
+
+- `POST /v1/audio/translations` (OpenAI-style multipart form-data)
+  - fields:
+    - `file` (required)
+    - `model` (required by OpenAI-style clients; accepts `whisper-1` or the server model id)
+    - `prompt` (optional, accepted for compatibility)
+    - `temperature` (optional, accepted for compatibility)
+    - `response_format` (`json`, `text`, `verbose_json`, `srt`, or `vtt`)
+  - response:
+    - `json`: `{"text":"...","model":"...","language":"en"}`
+    - `text`: plain translated text
+
+- `GET /v1/models`
+  - response:
+    - OpenAI-style list object with the server model and `whisper-1` alias
+
+- `GET /v1/models/{model_id}`
+  - accepts:
+    - `whisper-1`
+    - `selimc/whisper-large-v3-turbo-turkish`
 
 Example:
 ```
@@ -173,9 +197,22 @@ curl -sS -X POST "http://localhost:8000/v1/audio/transcriptions" \
   -F "response_format=json"
 ```
 
+Translation example:
+```
+curl -sS -X POST "http://localhost:8000/v1/audio/translations" \
+  -F "file=@sample.wav" \
+  -F "model=whisper-1" \
+  -F "response_format=json"
+```
+
+Model list example:
+```
+curl -sS "http://localhost:8000/v1/models"
+```
+
 ### Wyoming gateway environment variables
 - `TTS_UPSTREAM_URL` (default `http://chatterbox-tts:8000`)
-- `STT_UPSTREAM_URL` (default `http://whisper-stt:10400`)
+- `STT_UPSTREAM_URL` (default `http://whisper-stt:8001`)
 - `WYOMING_TTS_HOST` (default `0.0.0.0`)
 - `WYOMING_TTS_PORT` (default `10200`)
 - `WYOMING_STT_HOST` (default `0.0.0.0`)

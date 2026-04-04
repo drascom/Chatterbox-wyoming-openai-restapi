@@ -2,24 +2,27 @@ import asyncio
 import io
 import logging
 import subprocess
+import time
 import warnings
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 import torch
-from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 import uvicorn
 
 
 MODEL_ID = "selimc/whisper-large-v3-turbo-turkish"
+MODEL_ALIASES = ("whisper-1",)
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 TORCH_DTYPE = torch.float16 if torch.cuda.is_available() else torch.float32
 DEFAULT_LANGUAGE = "tr"
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 10400
+ResponseFormat = Literal["text", "json", "verbose_json", "srt", "vtt"]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -144,7 +147,65 @@ def _decode_uploaded_audio(raw: bytes, sample_rate: int = 16000) -> np.ndarray:
         return _decode_with_ffmpeg(raw, sample_rate=sample_rate)
 
 
-async def transcribe_audio(audio: np.ndarray, language: Optional[str]) -> str:
+def _normalize_model_id(model: str) -> str:
+    candidate = (model or "").strip()
+    if not candidate or candidate == MODEL_ID or candidate in MODEL_ALIASES:
+        return MODEL_ID
+    raise HTTPException(status_code=404, detail=f"Model '{candidate}' not found")
+
+
+def _model_payload(model_id: str) -> dict:
+    return {
+        "id": model_id,
+        "object": "model",
+        "created": int(time.time()),
+        "owned_by": "openai",
+        "root": MODEL_ID,
+    }
+
+
+def _format_timestamp(total_seconds: float, *, srt: bool) -> str:
+    total_millis = max(0, int(round(total_seconds * 1000)))
+    hours, remainder = divmod(total_millis, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, millis = divmod(remainder, 1000)
+    if srt:
+        return f"{hours:02}:{minutes:02}:{seconds:02},{millis:03}"
+    return f"{hours:02}:{minutes:02}:{seconds:02}.{millis:03}"
+
+
+def _format_transcript_response(
+    *,
+    text: str,
+    model: str,
+    language: Optional[str],
+    task: Literal["transcribe", "translate"],
+    response_format: ResponseFormat,
+    duration_seconds: float,
+) -> Response:
+    if response_format == "text":
+        return PlainTextResponse(text)
+    if response_format == "verbose_json":
+        return JSONResponse(
+            {
+                "task": task,
+                "language": language or "",
+                "duration": round(duration_seconds, 3),
+                "text": text,
+                "segments": [],
+                "words": [],
+            }
+        )
+    if response_format == "srt":
+        srt = f"1\n{_format_timestamp(0, srt=True)} --> {_format_timestamp(duration_seconds, srt=True)}\n{text}\n"
+        return Response(content=srt, media_type="text/plain")
+    if response_format == "vtt":
+        vtt = f"WEBVTT\n\n{_format_timestamp(0, srt=False)} --> {_format_timestamp(duration_seconds, srt=False)}\n{text}\n"
+        return Response(content=vtt, media_type="text/vtt")
+    return JSONResponse({"text": text, "model": model, "language": language})
+
+
+async def transcribe_audio(audio: np.ndarray, language: Optional[str], task: Literal["transcribe", "translate"]) -> str:
     if asr_model is None or asr_processor is None:
         raise HTTPException(status_code=503, detail="ASR model is not loaded")
 
@@ -164,7 +225,7 @@ async def transcribe_audio(audio: np.ndarray, language: Optional[str]) -> str:
             "input_features": input_features,
             "attention_mask": attention_mask,
             "use_cache": False,
-            "task": "transcribe",
+            "task": task,
         }
         if language:
             generate_kwargs["language"] = language.split("-")[0]
@@ -224,7 +285,7 @@ async def transcribe_endpoint(
         audio_mono = _resample_if_needed(audio_mono, sample_rate, 16000)
 
     lang = language or DEFAULT_LANGUAGE
-    text = await transcribe_audio(audio_mono, lang)
+    text = await transcribe_audio(audio_mono, lang, "transcribe")
 
     return JSONResponse(
         {
@@ -243,7 +304,7 @@ async def public_stt_endpoint(
     raw = await file.read()
     audio_mono = _decode_uploaded_audio(raw, sample_rate=16000)
     lang = language or DEFAULT_LANGUAGE
-    text = await transcribe_audio(audio_mono, lang)
+    text = await transcribe_audio(audio_mono, lang, "transcribe")
     return JSONResponse({"text": text, "model": MODEL_ID, "language": lang})
 
 
@@ -252,16 +313,66 @@ async def openai_transcriptions_endpoint(
     file: UploadFile = File(...),
     model: str = Form(MODEL_ID),
     language: Optional[str] = Form(None),
-    response_format: str = Form("json"),
+    prompt: Optional[str] = Form(None),
+    response_format: ResponseFormat = Form("json"),
+    temperature: float = Form(0.0),
+    timestamp_granularities: Optional[list[str]] = Form(None, alias="timestamp_granularities[]"),
+    stream: bool = Form(False),
+    hotwords: Optional[str] = Form(None),
+    without_timestamps: bool = Form(True),
 ):
+    del prompt, temperature, timestamp_granularities, hotwords, without_timestamps
+    selected_model = _normalize_model_id(model)
     raw = await file.read()
     audio_mono = _decode_uploaded_audio(raw, sample_rate=16000)
     lang = language or DEFAULT_LANGUAGE
-    text = await transcribe_audio(audio_mono, lang)
+    if stream:
+        logger.warning("`stream=true` requested on /v1/audio/transcriptions, but streaming is not implemented; returning a standard response")
+    text = await transcribe_audio(audio_mono, lang, "transcribe")
+    return _format_transcript_response(
+        text=text,
+        model=selected_model,
+        language=lang,
+        task="transcribe",
+        response_format=response_format,
+        duration_seconds=len(audio_mono) / 16000.0,
+    )
 
-    if response_format == "text":
-        return PlainTextResponse(text)
-    return JSONResponse({"text": text, "model": model or MODEL_ID, "language": lang})
+
+@app.post("/v1/audio/translations", response_model=None)
+async def openai_translations_endpoint(
+    file: UploadFile = File(...),
+    model: str = Form(MODEL_ID),
+    prompt: Optional[str] = Form(None),
+    response_format: ResponseFormat = Form("json"),
+    temperature: float = Form(0.0),
+):
+    del prompt, temperature
+    selected_model = _normalize_model_id(model)
+    raw = await file.read()
+    audio_mono = _decode_uploaded_audio(raw, sample_rate=16000)
+    text = await transcribe_audio(audio_mono, None, "translate")
+    return _format_transcript_response(
+        text=text,
+        model=selected_model,
+        language="en",
+        task="translate",
+        response_format=response_format,
+        duration_seconds=len(audio_mono) / 16000.0,
+    )
+
+
+@app.get("/v1/models")
+async def list_models() -> JSONResponse:
+    return JSONResponse({"object": "list", "data": [_model_payload(MODEL_ID), *[_model_payload(alias) for alias in MODEL_ALIASES]]})
+
+
+@app.get("/v1/models/{model_id:path}")
+async def get_model(model_id: str) -> JSONResponse:
+    normalized_id = _normalize_model_id(model_id)
+    if model_id in MODEL_ALIASES:
+        return JSONResponse(_model_payload(model_id))
+    return JSONResponse(_model_payload(normalized_id))
 
 
 if __name__ == "__main__":
